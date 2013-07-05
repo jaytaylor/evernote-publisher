@@ -1,0 +1,13 @@
+# -*- coding: utf-8 -*-
+
+consumerKey=''
+consumerSecret=''
+developerToken=''
+noteStoreUrl=''
+
+TOKEN_EXPIRY_DATE=''
+
+DATA_PATH = 'data/'
+
+OUTPUT_PATH = '/var/www/evernote/'
+
