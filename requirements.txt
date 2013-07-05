@@ -1,1 +1,2 @@
+simplejson
 git+git://github.com/evernote/evernote-sdk-python.git@8549be52c5480770210640b288f55d600fe2384d

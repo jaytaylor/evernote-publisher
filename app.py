@@ -8,9 +8,10 @@ EverNote WebClipper publisher.
 @date 2013-06-30
 """
 
-import sys
+import os, sys
 from lib.errorcodes import *
 from lib.collector import Collector
+from lib.generator import generate
 
 
 def initialize():
@@ -43,6 +44,9 @@ usage: {0} [action] [additional parameters?]
 
         myNotebook = sys.argv[2]
         Collector(myNotebook).run()
+
+    elif action == 'generate':
+        generate()
 
     else:
         sys.stderr.write('error: unrecognized action: "{0}", view help by running `{1} help`\n'.format(action, sys.argv[0]))

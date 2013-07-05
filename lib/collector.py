@@ -54,7 +54,7 @@ class Collector(object):
         print 'info: found notebook "{0}"'.format(notebook.name)
 
         searchFilter = NoteFilter(order=1, ascending=False, notebookGuid=notebook.guid)
-        noteList = self.noteStore.findNotes(developerToken, searchFilter, 0, 10000)
+        noteList = self.noteStore.findNotes(settings.developerToken, searchFilter, 0, 10000)
         with open('/tmp/search', 'w') as fh:
             fh.write(pickle.dumps(noteList))
         """
@@ -70,25 +70,27 @@ class Collector(object):
 
         for note in noteList.notes:
             # args: authenticationToken, guid, withContent, withResourcesData, withResourcesRecognition, withResourcesAlternateData
-            note = self.noteStore.getNote(developerToken, note.guid, True, True, True, True)
-            out = '''
-    title: {title}
-    created: {created}
-    updated: {updated}
-    deleted: {deleted}
-    content: {content}
-    tags: {tags}
-            '''.format(
-                title=note.title,
-                created=note.created,
-                updated=note.updated,
-                deleted=note.deleted,
-                content=note.content,
-                tags=', '.join(note.tagNames) if note.tagNames is not None else '',
-            ).strip()
-            print type(note.contentHash), note.contentHash
+            note = self.noteStore.getNote(settings.developerToken, note.guid, True, True, True, True)
+#            out = '''
+#    title: {title}
+#    created: {created}
+#    updated: {updated}
+#    deleted: {deleted}
+#    content: {content}
+#    tags: {tags}
+#            '''.format(
+#                title=note.title,
+#                created=note.created,
+#                updated=note.updated,
+#                deleted=note.deleted,
+#                content=note.content,
+#                tags=', '.join(note.tagNames) if note.tagNames is not None else '',
+#            ).strip()
+            #print type(note.contentHash), note.contentHash
+            print note.guid
             data = {
-                'title': note.title,
+                'title': u'{0}'.format(note.title.decode('unicode-escape')).encode('utf-8'),
+                #'b64Title': base64.b64encode(note.title),
                 'guid': note.guid,
                 'created': note.created,
                 'updated': note.updated,
