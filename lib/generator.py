@@ -2,13 +2,32 @@
 
 """Note renderer."""
 
-import simplejson as json, glob, settings, shutil, unicodedata
+import datetime, simplejson as json, glob, os, settings, shutil, unicodedata
+from jinja2 import Template
 from .util import fileGetContents
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+
+class Note(object):
+    def __init__(self, data):
+        self.id = data['id']
+        self.data = data['data']
+        self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
+        print self.data.keys() #dir(self.data)
+
+    def __getattr__(self, attr):
+        """Pass-through to `data` keys when requrested attribute is not available."""
+        if attr in self.__dict__:
+            return getattr(self, attr)
+
+        if attr in self.data:
+            return self.data[attr]
+
+        raise AttributeError("'Note' object has no attribute '{0}'".format(attr))
 
 
 #def renderNote(fileName):
@@ -36,6 +55,10 @@ def generate():
     """Read and render Note data."""
     listing = []
     dataFiles = glob.iglob('{0}/*.json'.format(settings.DATA_PATH))
+    if not os.path.exists(settings.OUTPUT_PATH + '/api'):
+        os.makedirs(settings.OUTPUT_PATH + '/api')
+    if not os.path.exists(settings.OUTPUT_PATH + '/view'):
+        os.makedirs(settings.OUTPUT_PATH + '/view')
     for path in dataFiles:
         jsonFileName = path[path.rindex('/')+1:]
         destination = '{0}/api/{1}'.format(settings.OUTPUT_PATH, jsonFileName)
@@ -53,6 +76,14 @@ def generate():
 
 def makeIndex(listingData):
     """Create static index."""
+    with open('templates/index.html', 'r') as fh:
+        t = Template(fh.read())
+        rendered = t.render(notes=map(lambda d: Note(d), listingData))
+
+    with open('{0}/index.html'.format(settings.OUTPUT_PATH), 'w') as fh:
+        fh.write(rendered.encode('utf-8'))
+
+    """Create static index.
     out = u'<html>\n<head>\n<title>Jays evernotes</title>\n</head>\n<body>\n'
 
     out += u'<div class="content">\n<ul>'
@@ -71,5 +102,6 @@ def makeIndex(listingData):
 
     with open('{0}/index.html'.format(settings.OUTPUT_PATH), 'w') as fh:
         fh.write(out.encode('utf-8'))
+    """
 
 

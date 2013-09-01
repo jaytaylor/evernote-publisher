@@ -45,9 +45,10 @@ usage: {0} [action] [additional parameters?]
         myNotebook = sys.argv[2]
         Collector(myNotebook).run()
 
-    elif action == 'generate':
+    elif action == 'rebuild':
         generate()
 
     else:
         sys.stderr.write('error: unrecognized action: "{0}", view help by running `{1} help`\n'.format(action, sys.argv[0]))
         sys.exit(1)
+

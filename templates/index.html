@@ -1,0 +1,14 @@
+<html>
+<head>
+<title>Evernote Publisher</title>
+</head>
+<body>
+<ul style="list-style-type:none">
+{% for note in notes %}
+    <li>{{ note.createdTs.strftime('%Y-%m-%d') }} <a href="view/{{ note.id }}.html">{{ note.title }}</a></li>
+{% endfor %}
+</ul>
+<br />
+<div class="footer">Powered by <a href="https://github.com/jaytaylor/evernote-publisher">Evernote Publisher</a></div>
+</body>
+</html>

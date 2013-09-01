@@ -8,7 +8,7 @@ EverNote WebClipper publisher.
 @date 2013-06-30
 """
 
-import settings
+import settings, os
 from .errorcodes import *
 
 from evernote.api.client import EvernoteClient
@@ -55,12 +55,15 @@ class Collector(object):
 
         searchFilter = NoteFilter(order=1, ascending=False, notebookGuid=notebook.guid)
         noteList = self.noteStore.findNotes(settings.developerToken, searchFilter, 0, 10000)
+        if not os.path.exists('/tmp/search'):
+            os.makedirs('/tmp/search')
         with open('/tmp/search', 'w') as fh:
             fh.write(pickle.dumps(noteList))
         """
         with open('/tmp/search', 'r') as fh:
             noteList = pickle.load(fh)
         """
+        #"""
         return noteList
 
 
@@ -87,7 +90,7 @@ class Collector(object):
 #                tags=', '.join(note.tagNames) if note.tagNames is not None else '',
 #            ).strip()
             #print type(note.contentHash), note.contentHash
-            print note.guid
+            print dir(note)
             data = {
                 'title': u'{0}'.format(note.title.decode('unicode-escape')).encode('utf-8'),
                 #'b64Title': base64.b64encode(note.title),
