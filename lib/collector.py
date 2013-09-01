@@ -25,6 +25,8 @@ try:
 except ImportError:
     import json
 
+TAG_CACHE_FILENAME = 'data/.tagCache.pickle'
+
 
 class Collector(object):
     """Note collector."""
@@ -38,10 +40,33 @@ class Collector(object):
             sandbox=False
         )
         self.noteStore = self.client.get_note_store()
+        self.tagCache = {}
+        self._loadTagCache()
+
+    def _loadTagCache(self):
+        """Try to load tag cache from disk."""
+        print 'info: loading tag cache..'
+
+        try:
+            with open(TAG_CACHE_FILENAME, 'r') as fh:
+                self.tagCache = pickle.loads(fh.read())
+            print 'info: tag cache successfully loadded'
+
+        except Exception, e:
+           print 'error: failed to load tag cache: {0}'.format(e)
+
+    def __del__(self):
+        """Persist tag cache to disk."""
+        if len(self.tagCache) == 0:
+           return
+
+        print 'info: shutdown: saving tag cache to disk...'
+        with open(TAG_CACHE_FILENAME, 'w') as fh:
+            fh.write(pickle.dumps(self.tagCache))
         
     def getNoteList(self):
         """Retrieve the NoteList for the named notebook."""
-        #"""
+        """
         notebooks = self.noteStore.listNotebooks()
 
         filteredNotebooks = filter(lambda nb: self.notebookName.lower() in nb.name.lower(), notebooks)
@@ -66,14 +91,52 @@ class Collector(object):
         #"""
         return noteList
 
+    def getNote(self, guid):
+        """Given a note guid, retrieves and returns the full note."""
+        return self.noteStore.getNote(settings.developerToken, guid, True, True, True, True)
+
+    def _resolveGuidToTag(self, guid):
+        """Given a tag guid, will look in cache and return cached item, otherwise will pull the tag from the Evernote API."""
+        if guid in self.tagCache:
+           # Read from cache.
+           return self.tagCache[guid]
+
+        # Otherwise, retrieve a fresh list of all tags on the account.
+        print 'info: fetching full tag list for the account'
+        tags = self.noteStore.listTags(settings.developerToken)
+        for tag in tags:
+            # Add to cache.
+            self.tagCache[tag.guid] = tag
+
+        if guid in self.tagCache:
+            # Return cached
+            return self.tagCache[guid]
+
+        # Otherwise, this is unexpected.  Attempt a direct lookup.
+        print 'warn: requested tag guid not found in full listing, will attempt a direct lookup'
+        tag = self.noteStore.getTag(settings.developerToken, guid)
+        # Add to cache.
+        self.tagCache[tag.guid] = tag
+        return tag
+
+    @staticmethod
+    def _tagToDict(tag):
+        """Convert a Tag object to a dict representation."""
+        return dict(map(lambda key: (key, getattr(tag, key)), ('updateSequenceNum', 'guid', 'name', 'parentGuid')))
+
+    def getTags(self, note):
+        """Given a note, retrieves associated tag records and converts them to dicts."""
+        print 'guids=',note.tagGuids
+        return map(self._tagToDict, map(self._resolveGuidToTag, note.tagGuids or []))
 
     def run(self):
         """Retrieve the latest notes."""
         noteList = self.getNoteList()
 
-        for note in noteList.notes:
+        for partialNote in noteList.notes:
             # args: authenticationToken, guid, withContent, withResourcesData, withResourcesRecognition, withResourcesAlternateData
-            note = self.noteStore.getNote(settings.developerToken, note.guid, True, True, True, True)
+            note = self.getNote(partialNote.guid)
+            tags = self.getTags(note)
 #            out = '''
 #    title: {title}
 #    created: {created}
@@ -91,6 +154,7 @@ class Collector(object):
 #            ).strip()
             #print type(note.contentHash), note.contentHash
             print dir(note)
+            print note.tagNames
             data = {
                 'title': u'{0}'.format(note.title.decode('unicode-escape')).encode('utf-8'),
                 #'b64Title': base64.b64encode(note.title),
@@ -101,6 +165,7 @@ class Collector(object):
                 'b64Content': base64.b64encode(note.content),
                 'b64ContentHash': base64.b64encode(note.contentHash),
                 'contentLength': note.contentLength,
+                'tags': tags,
                 'tagNames': note.tagNames,
                 'tagGuids': note.tagGuids,
             }
@@ -112,10 +177,4 @@ class Collector(object):
 
             with open('{0}/{1}.json'.format(settings.DATA_PATH, note.created), 'w') as fh:
                 json.dump(data, fh)
-
-
-
-
-
-
 
