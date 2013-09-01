@@ -11,7 +11,7 @@ EverNote WebClipper publisher.
 import os, sys
 from lib.errorcodes import *
 from lib.collector import Collector
-from lib.generator import generate
+from lib.generator import HtmlGenerator
 
 
 def initialize():
@@ -46,7 +46,8 @@ usage: {0} [action] [additional parameters?]
         Collector(myNotebook).run()
 
     elif action == 'rebuild':
-        generate()
+        generator = HtmlGenerator()
+        generator.generate()
 
     else:
         sys.stderr.write('error: unrecognized action: "{0}", view help by running `{1} help`\n'.format(action, sys.argv[0]))
