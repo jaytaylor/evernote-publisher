@@ -3,11 +3,14 @@
 <title>Evernote Publisher: {{ note.title }}</title>
 </head>
 <body>
-<ul style="list-style-type:none">
-{% for note in notes %}
-    <li>{{ note.createdTs.strftime('%Y-%m-%d') }} <a href="view/{{ note.id }}.html">{{ note.title }}</a></li>
-{% endfor %}
-</ul>
+<a href="..">back to listing index</a>
+<br />
+<h3>{{ note.title }}</h3>
+
+<div class="content">
+{{ note.content }}
+</div>
+
 <br />
 <div class="footer">Powered by <a href="https://github.com/jaytaylor/evernote-publisher">Evernote Publisher</a></div>
 </body>
