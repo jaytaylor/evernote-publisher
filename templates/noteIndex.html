@@ -4,6 +4,9 @@
 
 {% block content %}
 <div class="container">
+<h3>Index</h3>
+or <a href="tag/">view by tag</a>
+<br />
 <ul style="list-style-type:none">
 {% for note in notes %}
     <li>{{ note.createdTs.strftime('%Y-%m-%d') }} <a href="node/{{ note.id }}.html">{{ note.title }}</a></li>

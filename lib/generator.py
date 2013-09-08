@@ -72,6 +72,8 @@ class HtmlGenerator(object):
             os.makedirs(settings.OUTPUT_PATH + '/api')
         if not os.path.exists(settings.OUTPUT_PATH + '/node'):
             os.makedirs(settings.OUTPUT_PATH + '/node')
+        if not os.path.exists(settings.OUTPUT_PATH + '/tag'):
+            os.makedirs(settings.OUTPUT_PATH + '/tag')
 
         for path in dataFiles:
             jsonFileName = path[path.rindex('/')+1:]
@@ -87,26 +89,47 @@ class HtmlGenerator(object):
         self.makeIndex(notes)
 
         map(self.makeNote, notes)
-        
+
+        self.makeTags(notes)
+
         #serializedDataFiles = glob.iglob('{0}/*.pickle'.format(settings.DATA_PATH))
         #for fileName in serializedDataFiles:
         #    renderNote(fileName)
 
+    def notesByTag(self, notes):
+        """@return list of tags, each tag includes notes."""
+        byTag = {}
+        for note in notes:
+            if hasattr(note, 'tags'):
+                for tag in note.tags:
+                    if tag['name'] not in byTag:
+                        byTag[tag['name']] = tag
+                        byTag[tag['name']]['notes'] = []
+                    byTag[tag['name']]['notes'].append(note)
+        for tagName in byTag:
+            byTag[tagName]['notes'] = sorted(byTag[tagName]['notes'], key=lambda note: note.createdTs, reverse=True)
+        return sorted(byTag.values(), key=lambda tag: tag['name'].lower())
+
+    def makeTags(self, notes):
+        """Create tags index."""
+        tags = self.notesByTag(notes)
+        for tag in tags:
+            self.render('tag.html', 'tag/{0}.html'.format(tag['name']), **{'tag': tag})
+
+        self.render('tagIndex.html', 'tag/index.html', **{'tags': tags})
+
     def makeNote(self, note):
         """Render and write out note."""
-        #with open('templates/node.html', 'r') as fh:
-        t = self.env.get_template('node.html')#Template(fh.read())
-        rendered = t.render(note=note)
-
-        with open('{0}/node/{1}.html'.format(settings.OUTPUT_PATH, note.id), 'w') as fh:
-            fh.write(rendered.encode('utf-8'))
+        self.render('node.html', 'node/{0}.html'.format(note.id), **{'note': note})
 
     def makeIndex(self, notes):
         """Create and write out static index."""
-        #with open('templates/index.html', 'r') as fh:
-        t = self.env.get_template('index.html') #Template(fh.read())
-        rendered = t.render(notes=notes)
+        self.render('noteIndex.html', 'index.html', **{'notes': notes})
 
-        with open('{0}/index.html'.format(settings.OUTPUT_PATH), 'w') as fh:
+    def render(self, template, targetFile, **kw):
+        """Render a template."""
+        t = self.env.get_template(template)
+        rendered = t.render(**kw)
+        with open('{0}/{1}'.format(settings.OUTPUT_PATH, targetFile), 'w') as fh:
             fh.write(rendered.encode('utf-8'))
 

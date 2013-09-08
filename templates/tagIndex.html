@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Evernote Publisher - Tags{% endblock %}
+
+{% block content %}
+<div class="container">
+<h3>Tags</h3>
+or <a href="..">view index</a>
+<br />
+<ul style="list-style-type:none">
+{% for tag in tags %}
+    <li><a href="{{ tag.name }}.html">{{ tag.name }}</a> ({{ tag.notes|length }})</li>
+{% endfor %}
+</ul>
+</div>
+{% endblock %}
+
