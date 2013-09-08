@@ -82,7 +82,7 @@ class HtmlGenerator(object):
                 data = json.load(fh)
             listing.append({'id': jsonFileName[0:jsonFileName.index('.')], 'data': data})
 
-        notes = filter(lambda n: n.deleted is not True, map(lambda d: Note(d), listing))
+        notes = sorted(filter(lambda n: n.deleted is not True, map(lambda d: Note(d), listing)), key=lambda n: n.createdTs, reverse=True)
 
         self.makeIndex(notes)
 
