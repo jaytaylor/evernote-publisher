@@ -3,11 +3,11 @@
 consumerKey=''
 consumerSecret=''
 developerToken=''
-noteStoreUrl=''
+noteStoreUrl='https://www.evernote.com/shard/s69/notestore'
 
 TOKEN_EXPIRY_DATE=''
 
-DATA_PATH = 'data/'
+DATA_PATH = 'data'
 
-OUTPUT_PATH = '/var/www/evernote/'
+OUTPUT_PATH = '/var/www/evernote'
 

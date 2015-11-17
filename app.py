@@ -9,14 +9,22 @@ EverNote WebClipper publisher.
 """
 
 import os, sys
+import settings
 from lib.errorcodes import *
 from lib.collector import Collector
 from lib.generator import HtmlGenerator
 
 
 def initialize():
-    """Initialize app data directories."""
-    os.mkdir('data') if not os.path.exists('data') else ''
+    """Cleanup settings and initialize app data directories."""
+    if settings.DATA_PATH.endswith('/'):
+        settings.DATA_PATH = settings.DATA_PATH[0:-1]
+    if settings.OUTPUT_PATH.endswith('/'):
+        settings.OUTPUT_PATH = settings.OUTPUT_PATH[0:-1]
+
+    for path in [settings.DATA_PATH, settings.OUTPUT_PATH]:
+        if not os.path.exists(path):
+            os.mkdir(path)
 
 
 if __name__ == '__main__':
