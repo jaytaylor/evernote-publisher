@@ -4,9 +4,16 @@
 
 {% block content %}
 <div class="container">
+
+<a href="..">up a level</a>
+
 <h3>Tags</h3>
-or <a href="..">view index</a>
-<br />
+
+by tag name <a href="index.html">asc</a> <a href="desc.html">desc</a>
+<br>
+by tag frequency <a href="by-frequency-asc.html">asc</a> <a href="by-frequency-desc.html">desc</a>
+
+<br>
 <ul style="list-style-type:none">
 {% for tag in tags %}
     <li><a href="{{ tag.name }}.html">{{ tag.name }}</a> ({{ tag.notes|length }})</li>
@@ -14,4 +21,3 @@ or <a href="..">view index</a>
 </ul>
 </div>
 {% endblock %}
-

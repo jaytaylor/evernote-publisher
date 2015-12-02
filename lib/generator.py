@@ -96,27 +96,49 @@ class HtmlGenerator(object):
         #for fileName in serializedDataFiles:
         #    renderNote(fileName)
 
-    def notesByTag(self, notes):
-        """@return list of tags, each tag includes notes."""
+    @staticmethod
+    def arrangeNotesByTag(notes):
         byTag = {}
         for note in notes:
             if hasattr(note, 'tags'):
                 for tag in note.tags:
+                    tag['name'] = tag['name'].lower()
                     if tag['name'] not in byTag:
                         byTag[tag['name']] = tag
                         byTag[tag['name']]['notes'] = []
                     byTag[tag['name']]['notes'].append(note)
         for tagName in byTag:
             byTag[tagName]['notes'] = sorted(byTag[tagName]['notes'], key=lambda note: note.createdTs, reverse=True)
-        return sorted(byTag.values(), key=lambda tag: tag['name'].lower())
+        return byTag
+
+    def notesByTag(self, notes, order='asc'):
+        """@return list of tags, each tag includes notes."""
+        byTag = self.arrangeNotesByTag(notes)
+        values = sorted(byTag.values(), key=lambda tag: tag['name'], reverse=order == 'desc')
+        return values
+
+    def notesByTagFrequency(self, notes, order='asc'):
+        """@return list of tags, each tag includes notes."""
+        byTag = self.arrangeNotesByTag(notes)
+        values = sorted(byTag.values(), key=lambda tag: tag['name'])
+        values = sorted(values, key=lambda tag: len(byTag[tag['name']]['notes']), reverse=order == 'desc')
+        return values
 
     def makeTags(self, notes):
         """Create tags index."""
-        tags = self.notesByTag(notes)
-        for tag in tags:
+        tagsAsc = self.notesByTag(notes)
+        for tag in tagsAsc:
             self.render('tag.html', 'tag/{0}.html'.format(tag['name']), **{'tag': tag})
 
-        self.render('tagIndex.html', 'tag/index.html', **{'tags': tags})
+        tagIndices = {
+            'tag/index.html': tagsAsc,
+            'tag/by-tag-desc.html': self.notesByTag(notes, order='desc'),
+            'tag/by-frequency-asc.html': self.notesByTagFrequency(notes),
+            'tag/by-frequency-desc.html': self.notesByTagFrequency(notes, order='desc'),
+        }
+
+        for filePath, tags in tagIndices.items():
+            self.render('tagIndex.html', filePath, **{'tags': tags})
 
     def makeNote(self, note):
         """Render and write out note."""
