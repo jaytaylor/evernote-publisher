@@ -8,13 +8,12 @@ EverNote WebClipper publisher.
 @date 2013-06-30
 """
 
-import settings, os
+import base64, glob, os, settings, sys
 from .errorcodes import *
 
 from evernote.api.client import EvernoteClient
 from evernote.edam.notestore.ttypes import NoteFilter
 
-import base64, sys
 try:
     import cPickle as pickle
 except ImportError:
@@ -30,6 +29,7 @@ TAG_CACHE_FILENAME = 'data/.tagCache.pickle'
 
 class Collector(object):
     """Note collector."""
+
     def __init__(self, notebookName):
         """@param notebookName str Notebook name (or name fragment)."""
         self.notebookName = notebookName
@@ -41,32 +41,24 @@ class Collector(object):
         )
         self.noteStore = self.client.get_note_store()
         self.tagCache = {}
-        self._loadTagCache()
+        self.loadTagCache()
+        self.remoteCount = None
 
-    def _loadTagCache(self):
-        """Try to load tag cache from disk."""
-        print 'info: loading tag cache..'
+    def run(self):
+        """Retrieve the latest notes."""
+        notebook = self.resolveNotebook()
+        offset = 0
+        noteList = self.getNoteList(notebook, offset)
+        while len(noteList.notes) > 0:
+            numUpdated = self.hydrateAndStore(noteList.notes)
+            # If no updates were applied and the local and remote counts match.
+            if numUpdated == 0 and self.localCountsMatchRemote(notebook):
+                # Then things are probably already in sync.
+                return
+            offset += len(noteList.notes)
+            noteList = self.getNoteList(notebook, offset)
 
-        try:
-            with open(TAG_CACHE_FILENAME, 'r') as fh:
-                self.tagCache = pickle.loads(fh.read())
-            print 'info: tag cache successfully loadded'
-
-        except Exception, e:
-           print 'error: failed to load tag cache: {0}'.format(e)
-
-    def __del__(self):
-        """Persist tag cache to disk."""
-        if len(self.tagCache) == 0:
-           return
-
-        print 'info: shutdown: saving tag cache to disk...'
-        with open(TAG_CACHE_FILENAME, 'w') as fh:
-            fh.write(pickle.dumps(self.tagCache))
-        
-    def getNoteList(self):
-        """Retrieve the NoteList for the named notebook."""
-        """
+    def resolveNotebook(self):
         notebooks = self.noteStore.listNotebooks()
 
         filteredNotebooks = filter(lambda nb: self.notebookName.lower() in nb.name.lower(), notebooks)
@@ -77,25 +69,124 @@ class Collector(object):
 
         notebook = filteredNotebooks[0]
         print 'info: found notebook "{0}"'.format(notebook.name)
+        return notebook
 
-        searchFilter = NoteFilter(order=1, ascending=False, notebookGuid=notebook.guid)
-        noteList = self.noteStore.findNotes(settings.developerToken, searchFilter, 0, 10000)
-        if not os.path.exists('/tmp/search'):
-            os.makedirs('/tmp/search')
-        with open('/tmp/search', 'w') as fh:
-            fh.write(pickle.dumps(noteList))
-        """
-        with open('/tmp/search', 'r') as fh:
-            noteList = pickle.load(fh)
-        """
-        #"""
+    def getNoteList(self, notebook, offset):
+        """Retrieve the NoteList for the named notebook."""
+        pageSize = 20
+        noteList = self.noteStore.findNotes(settings.developerToken, self.defaultSearchFilter(notebook), offset, pageSize)
+        print 'offset=%s count=%s' % (offset, len(noteList.notes))
         return noteList
+
+    def hydrateAndStore(self, partialNotes):
+        numUpdated = 0
+        for partialNote in partialNotes:
+            # args: authenticationToken, guid, withContent, withResourcesData, withResourcesRecognition, withResourcesAlternateData
+            jsonFileName = '{0}/{1}.json'.format(settings.DATA_PATH, partialNote.created)
+            pickleFileName = '{0}/{1}.pickle'.format(settings.DATA_PATH, partialNote.created)
+            if os.path.exists(jsonFileName) and os.path.exists(pickleFileName):
+                with open(jsonFileName, 'r') as fh:
+                    detail = json.load(fh)
+                if isinstance(detail, dict) and detail.get('updated', None) == partialNote.updated:
+                    print '[info] Already up to date for note=%s' % (partialNote.title,)
+                    continue
+
+            note = self.getNote(partialNote.guid)
+            tags = self.getNoteTags(note)
+#            out = '''
+#    title: {title}
+#    created: {created}
+#    updated: {updated}
+#    deleted: {deleted}
+#    content: {content}
+#    tags: {tags}
+#            '''.format(
+#                title=note.title,
+#                created=note.created,
+#                updated=note.updated,
+#                deleted=note.deleted,
+#                content=note.content,
+#                tags=', '.join(note.tagNames) if note.tagNames is not None else '',
+#            ).strip()
+            # print type(note.contentHash), note.contentHash
+            # print dir(note)
+            # print note.tagNames
+            data = {
+                'title': u'{0}'.format(note.title.decode('unicode-escape')).encode('utf-8'),
+                #'b64Title': base64.b64encode(note.title),
+                'guid': note.guid,
+                'created': note.created,
+                'updated': note.updated,
+                'deleted': note.deleted,
+                'b64Content': base64.b64encode(note.content),
+                'b64ContentHash': base64.b64encode(note.contentHash),
+                'contentLength': note.contentLength,
+                'tags': tags,
+                'tagNames': note.tagNames,
+                'tagGuids': note.tagGuids,
+            }
+
+            #print dir(note)
+            #print str(note.attributes
+            with open(pickleFileName, 'w') as fh:
+                pickle.dump(note, fh)
+
+            with open(jsonFileName, 'w') as fh:
+                json.dump(data, fh)
+
+            numUpdated += 1
+
+        return numUpdated
+
+    def defaultSearchFilter(self, notebook):
+        # `order = 1' -> order by created
+        # `order = 2' -> order by updated
+        # @see NoteStoreOrder at https://dev.evernote.com/doc/reference/Types.html
+        searchFilter = NoteFilter(order=2, ascending=False, notebookGuid=notebook.guid)
+        return searchFilter
+
+    def localCountsMatchRemote(self, notebook):
+        localJsonCount = len(glob.glob('{0}/[0-9]+.json'.format(settings.DATA_PATH)))
+        localPickleCount = len(glob.glob('{0}/[0-9]+.pickle'.format(settings.DATA_PATH)))
+        if localJsonCount != localPickleCount:
+            return False
+        if self.remoteCount is None:
+            self.remoteCount = self.noteStore.findNoteCounts(settings.developerToken, self.defaultSearchFilter(notebook), False)
+        if localPickleCount != self.remoteCount:
+            return False
+        return True
+
+    def loadTagCache(self):
+        """Try to load tag cache from disk."""
+        print 'info: loading tag cache..'
+
+        try:
+            with open(TAG_CACHE_FILENAME, 'r') as fh:
+                self.tagCache = pickle.loads(fh.read())
+            print 'info: tag cache successfully loadded'
+
+        except Exception, e:
+           print 'notice: pre-existing tag cache not found: {0}'.format(e)
+
+    def __del__(self):
+        """Persist tag cache to disk."""
+        if len(self.tagCache) == 0:
+           return
+
+        print 'info: shutdown: saving tag cache to disk...'
+        with open(TAG_CACHE_FILENAME, 'w') as fh:
+            fh.write(pickle.dumps(self.tagCache))
 
     def getNote(self, guid):
         """Given a note guid, retrieves and returns the full note."""
         return self.noteStore.getNote(settings.developerToken, guid, True, True, True, True)
 
-    def _resolveGuidToTag(self, guid):
+    def getNoteTags(self, note):
+        """Given a note, retrieves associated tag records and converts them to dicts."""
+        print 'guids=%s for note=%s' % (note.tagGuids, note.title)
+        return map(self.tagToDict, map(self.resolveGuidToTag, note.tagGuids or []))
+
+    def resolveGuidToTag(self, guid):
         """Given a tag guid, will look in cache and return cached item, otherwise will pull the tag from the Evernote API."""
         if guid in self.tagCache:
            # Read from cache.
@@ -120,61 +211,6 @@ class Collector(object):
         return tag
 
     @staticmethod
-    def _tagToDict(tag):
+    def tagToDict(tag):
         """Convert a Tag object to a dict representation."""
         return dict(map(lambda key: (key, getattr(tag, key)), ('updateSequenceNum', 'guid', 'name', 'parentGuid')))
-
-    def getTags(self, note):
-        """Given a note, retrieves associated tag records and converts them to dicts."""
-        print 'guids=',note.tagGuids
-        return map(self._tagToDict, map(self._resolveGuidToTag, note.tagGuids or []))
-
-    def run(self):
-        """Retrieve the latest notes."""
-        noteList = self.getNoteList()
-
-        for partialNote in noteList.notes:
-            # args: authenticationToken, guid, withContent, withResourcesData, withResourcesRecognition, withResourcesAlternateData
-            note = self.getNote(partialNote.guid)
-            tags = self.getTags(note)
-#            out = '''
-#    title: {title}
-#    created: {created}
-#    updated: {updated}
-#    deleted: {deleted}
-#    content: {content}
-#    tags: {tags}
-#            '''.format(
-#                title=note.title,
-#                created=note.created,
-#                updated=note.updated,
-#                deleted=note.deleted,
-#                content=note.content,
-#                tags=', '.join(note.tagNames) if note.tagNames is not None else '',
-#            ).strip()
-            #print type(note.contentHash), note.contentHash
-            print dir(note)
-            print note.tagNames
-            data = {
-                'title': u'{0}'.format(note.title.decode('unicode-escape')).encode('utf-8'),
-                #'b64Title': base64.b64encode(note.title),
-                'guid': note.guid,
-                'created': note.created,
-                'updated': note.updated,
-                'deleted': note.deleted,
-                'b64Content': base64.b64encode(note.content),
-                'b64ContentHash': base64.b64encode(note.contentHash),
-                'contentLength': note.contentLength,
-                'tags': tags,
-                'tagNames': note.tagNames,
-                'tagGuids': note.tagGuids,
-            }
-
-            #print dir(note)
-            #print str(note.attributes
-            with open('{0}/{1}.pickle'.format(settings.DATA_PATH, note.created), 'w') as fh:
-                pickle.dump(note, fh)
-
-            with open('{0}/{1}.json'.format(settings.DATA_PATH, note.created), 'w') as fh:
-                json.dump(data, fh)
-
