@@ -5,7 +5,8 @@
 import base64, datetime, simplejson as json, glob, os, settings, shutil, unicodedata
 from jinja2 import Template, DictLoader
 from jinja2.environment import Environment
-from .util import fileGetContents
+from unidecode import unidecode
+from .util import fileGetContents, safeUnicode
 
 try:
     import cPickle as pickle
@@ -19,8 +20,8 @@ class Note(object):
         self.data = data['data']
         self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
         self.content = base64.b64decode(self.data['b64Content']).decode('utf-8')
-        print self.data.keys() #dir(self.data)
-        print self.data['tagNames']
+        # print self.data.keys() #dir(self.data)
+        # print self.data['tagNames']
 
     def __getattr__(self, attr):
         """Pass-through to `data` keys when requrested attribute is not available."""
@@ -102,7 +103,7 @@ class HtmlGenerator(object):
         for note in notes:
             if hasattr(note, 'tags'):
                 for tag in note.tags:
-                    tag['name'] = tag['name'].lower()
+                    tag['name'] = unidecode(safeUnicode(tag['name'].lower()))
                     if tag['name'] not in byTag:
                         byTag[tag['name']] = tag
                         byTag[tag['name']]['notes'] = []

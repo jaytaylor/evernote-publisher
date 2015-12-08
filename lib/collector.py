@@ -73,7 +73,7 @@ class Collector(object):
 
     def getNoteList(self, notebook, offset):
         """Retrieve the NoteList for the named notebook."""
-        pageSize = 20
+        pageSize = 49
         noteList = self.noteStore.findNotes(settings.developerToken, self.defaultSearchFilter(notebook), offset, pageSize)
         print 'offset=%s count=%s' % (offset, len(noteList.notes))
         return noteList
