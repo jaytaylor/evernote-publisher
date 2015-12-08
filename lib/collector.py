@@ -10,6 +10,7 @@ EverNote WebClipper publisher.
 
 import base64, glob, os, settings, sys
 from .errorcodes import *
+from .logger import logger
 
 from evernote.api.client import EvernoteClient
 from evernote.edam.notestore.ttypes import NoteFilter
@@ -42,7 +43,7 @@ class Collector(object):
         self.noteStore = self.client.get_note_store()
         self.tagCache = {}
         self.loadTagCache()
-        self.remoteCount = None
+        self.remoteNoteCounts = None
 
     def run(self):
         """Retrieve the latest notes."""
@@ -146,13 +147,17 @@ class Collector(object):
         return searchFilter
 
     def localCountsMatchRemote(self, notebook):
-        localJsonCount = len(glob.glob('{0}/[0-9]+.json'.format(settings.DATA_PATH)))
-        localPickleCount = len(glob.glob('{0}/[0-9]+.pickle'.format(settings.DATA_PATH)))
+        localJsonCount = len(glob.glob('{0}/[0-9]*.json'.format(settings.DATA_PATH)))
+        logger.debug('local json len=%s', localJsonCount)
+        localPickleCount = len(glob.glob('{0}/[0-9]*.pickle'.format(settings.DATA_PATH)))
+        logger.debug('local pikl len=%s', localPickleCount)
         if localJsonCount != localPickleCount:
             return False
-        if self.remoteCount is None:
-            self.remoteCount = self.noteStore.findNoteCounts(settings.developerToken, self.defaultSearchFilter(notebook), False)
-        if localPickleCount != self.remoteCount:
+        if self.remoteNoteCounts is None:
+            self.remoteNoteCounts = self.noteStore.findNoteCounts(settings.developerToken, self.defaultSearchFilter(notebook), False)
+        remoteCount = self.remoteNoteCounts.notebookCounts[notebook.guid]
+        logger.debug('remot book len=%s', remoteCount)
+        if localPickleCount != remoteCount and localPickleCount != remoteCount-1: # There seems to be a counting bug on Evernotes side.
             return False
         return True
 
