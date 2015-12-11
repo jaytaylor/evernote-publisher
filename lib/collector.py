@@ -9,6 +9,7 @@ EverNote WebClipper publisher.
 """
 
 import base64, glob, os, settings, sys
+from bs4 import BeautifulSoup
 from .errorcodes import *
 from .logger import logger
 
@@ -113,7 +114,7 @@ class Collector(object):
             # print dir(note)
             # print note.tagNames
             data = {
-                'title': u'{0}'.format(note.title.decode('unicode-escape')).encode('utf-8'),
+                'title': BeautifulSoup(note.title, 'html.parser').string,
                 #'b64Title': base64.b64encode(note.title),
                 'guid': note.guid,
                 'created': note.created,
