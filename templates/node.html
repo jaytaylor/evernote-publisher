@@ -5,15 +5,25 @@
 {% block content %}
 <a href="..">back to listing index</a>
 <br />
-<h3>{{ note.title }}</h3>
 
+<div class="title">
+<h3>{{ note.title }}</h3>
+</div>
+
+<div class="container">
+[<a href="https://encrypted.google.com/search?q={{ note.urlencoded_title }}" target="_blank">web</a>]
+</div>
 {% if note.tags %}
 <div class="container">
+Tags:
 {% for tag in note.tags %}
 <a href="../tag/{{ tag.name }}.html">{{ tag.name }}</a>
 {% endfor %}
 </div>
 {% endif %}
+<div class="container">
+Clipped on: {{ note.createdTs.strftime('%Y-%m-%d') }}
+</div>
 
 <div class="container">
 {{ note.content }}

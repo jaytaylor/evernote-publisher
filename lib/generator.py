@@ -2,7 +2,7 @@
 
 """Note renderer."""
 
-import base64, datetime, simplejson as json, glob, os, settings, shutil, unicodedata
+import base64, datetime, simplejson as json, glob, os, settings, shutil, unicodedata, urllib
 from bs4 import BeautifulSoup
 from jinja2 import Template, DictLoader
 from jinja2.environment import Environment
@@ -85,6 +85,7 @@ class HtmlGenerator(object):
             with open(path, 'r') as fh:
                 data = json.load(fh)
                 data['title'] = BeautifulSoup(data['title'], 'html.parser', from_encoding='iso8859-15').string
+                data['urlencoded_title'] = urllib.quote_plus(data['title'].encode('utf-8'))
             listing.append({'id': jsonFileName[0:jsonFileName.index('.')], 'data': data})
 
         notes = sorted(filter(lambda n: n.deleted is not True, map(lambda d: Note(d), listing)), key=lambda n: n.createdTs, reverse=True)
