@@ -2,7 +2,7 @@
 
 """Note renderer."""
 
-import base64, datetime, simplejson as json, glob, os, settings, shutil, unicodedata, urllib
+import base64, datetime, simplejson as json, glob, os, re, settings, shutil, unicodedata, urllib
 from bs4 import BeautifulSoup
 from jinja2 import Template, DictLoader
 from jinja2.environment import Environment
@@ -14,6 +14,7 @@ try:
 except ImportError:
     import pickle
 
+evernoteStyleCleaner = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px|overflow:hidden|position:fixed;top:0px;left:0px|opacity:0)([^"]*")', re.I)
 
 class Note(object):
     def __init__(self, data):
@@ -21,6 +22,10 @@ class Note(object):
         self.data = data['data']
         self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
         self.content = base64.b64decode(self.data['b64Content']).decode('utf-8')
+        last = ''
+        while last != self.content:
+            last = self.content
+            self.content = evernoteStyleCleaner.sub(r'\1\2', self.content)
         # print self.data.keys() #dir(self.data)
         # print self.data['tagNames']
 
