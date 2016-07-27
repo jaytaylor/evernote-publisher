@@ -4,8 +4,7 @@
 
 import base64, datetime, simplejson as json, glob, os, re, settings, shutil, unicodedata, urllib
 from bs4 import BeautifulSoup
-from jinja2 import Template, DictLoader
-from jinja2.environment import Environment
+import jinja2
 from unidecode import unidecode
 from .util import fileGetContents, safeUnicode
 
@@ -14,18 +13,27 @@ try:
 except ImportError:
     import pickle
 
-evernoteStyleCleaner = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px|overflow:hidden|position:fixed;top:0px;left:0px|opacity:0)([^"]*")', re.I)
+evernoteStyleCleanerExpre = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px|overflow:hidden|position:fixed;top:0px;left:0px|opacity:0)([^"]*")', re.I)
+jsonFilenameToPickleExpr = re.compile(r'^(.*)\.json$', re.I)
+jsonFilenameToPickle = lambda filename: jsonFilenameToPickleExpr.subn(r'\1.pickle', filename, 1)[0]
 
 class Note(object):
-    def __init__(self, data):
-        self.id = data['id']
-        self.data = data['data']
+    def __init__(self, id, data, obj):
+        self.id = id
+        self.data = data
+        self.data['title'] = BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
+        self.data['urlencoded_title'] = urllib.quote_plus(self.data['title'].encode('utf-8'))
+        self.obj = obj
         self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
+
         self.content = base64.b64decode(self.data['b64Content']).decode('utf-8')
+
+        # Cleanup Evernotes poor clipping CSS butchery.
         last = ''
         while last != self.content:
             last = self.content
-            self.content = evernoteStyleCleaner.sub(r'\1\2', self.content)
+            self.content = evernoteStyleCleanerExpre.sub(r'\1\2', self.content)
+
         # print self.data.keys() #dir(self.data)
         # print self.data['tagNames']
 
@@ -37,8 +45,20 @@ class Note(object):
         if attr in self.data:
             return self.data[attr]
 
+        if hasattr(self.obj, attr):
+            return getattr(self.obj, attr)
+
         raise AttributeError("'Note' object has no attribute '{0}'".format(attr))
 
+    def resourceFilenameTuples(self):
+        out = []
+        if not self.resources:
+            return out
+        for i, resource in enumerate(self.resources):
+            ext = resource.mime[resource.mime.index('/') + 1:] if resource.mime and '/' in resource.mime else 'dat'
+            filename = '%s-%s.%s' % (self.guid, i, ext)
+            out.append((resource, filename))
+        return out
 
 #def renderNote(fileName):
 #    """Render a single note."""
@@ -60,15 +80,27 @@ class Note(object):
 #
 #    settings.OUTPUT_PATH
 
-
 class HtmlGenerator(object):
     """Generate and render HTML output."""
 
     def __init__(self):
         """Prepare jinja2 template environment."""
-        self.env = Environment()
+        self.assetsRelPubPath = '../assets'
+
+        def contentWithTranslatedAssets(note):
+            content = note.content
+            # Replace media objects in content with ones that actually exist :)
+            for resource, filename in note.resourceFilenameTuples():
+                content = re.subn(r'<en-media(?:[^\/]|\/[^>])+/>', '<img src="%s/%s"/>' % (self.assetsRelPubPath, filename), content, 1)[0]
+                # TODO: investigate "recognition" later.  Looks like it is iamge OCR.
+                #if resource.recognition:
+                #    content += resource.recognition.body
+            return content
+        jinja2.filters.FILTERS['contentWithTranslatedAssets'] = contentWithTranslatedAssets
+
+        self.env = jinja2.environment.Environment()
         self.templates = dict((name[10:], open(name, 'rb').read()) for name in glob.glob('templates/*.html'))
-        self.env.loader = DictLoader(self.templates)
+        self.env.loader = jinja2.DictLoader(self.templates)
 
     def generate(self):
         """Read and render Note data."""
@@ -83,17 +115,30 @@ class HtmlGenerator(object):
             os.makedirs(settings.OUTPUT_PATH + '/tag')
 
         for path in dataFiles:
-            jsonFileName = path[path.rindex('/')+1:]
+            #if '1467826537000' not in path:
+            #    continue
+            jsonFileName = path[path.rindex('/') + 1:]
             destination = '{0}/api/{1}'.format(settings.OUTPUT_PATH, jsonFileName)
             shutil.copyfile(path, destination)
 
             with open(path, 'r') as fh:
                 data = json.load(fh)
-                data['title'] = BeautifulSoup(data['title'], 'html.parser', from_encoding='iso8859-15').string
-                data['urlencoded_title'] = urllib.quote_plus(data['title'].encode('utf-8'))
-            listing.append({'id': jsonFileName[0:jsonFileName.index('.')], 'data': data})
 
-        notes = sorted(filter(lambda n: n.deleted is not True, map(lambda d: Note(d), listing)), key=lambda n: n.createdTs, reverse=True)
+            with open(jsonFilenameToPickle(path), 'r') as fh:
+                obj = pickle.load(fh)
+
+            noteId = jsonFileName[0:jsonFileName.index('.')]
+            note = Note(noteId, data, obj)
+            listing.append(note)
+
+        notes = sorted(
+            filter(
+                lambda note: note.deleted is not True,
+                listing,
+            ),
+            key=lambda note: note.createdTs,
+            reverse=True,
+        )
 
         self.makeIndex(notes)
 
@@ -158,9 +203,19 @@ class HtmlGenerator(object):
         self.render('noteIndex.html', 'index.html', **{'notes': notes})
 
     def render(self, template, targetFile, **kw):
-        """Render a template."""
+        """Render a template and dump corresponding assets."""
         t = self.env.get_template(template)
+        if 'note' in kw:
+            self.dumpAssets(kw['note'])
         rendered = t.render(**kw)
         with open('{0}/{1}'.format(settings.OUTPUT_PATH, targetFile), 'w') as fh:
             fh.write(rendered.encode('utf-8'))
+
+    def dumpAssets(self, note):
+        assetsPath = settings.OUTPUT_PATH + '/assets'
+        if not os.path.exists(assetsPath):
+            os.makedirs(assetsPath)
+        for resource, filename in note.resourceFilenameTuples():
+            with open('%s/%s' % (assetsPath, filename), 'wb') as fh:
+                fh.write(resource.data.body)
 

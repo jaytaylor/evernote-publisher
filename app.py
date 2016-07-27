@@ -40,12 +40,14 @@ if __name__ == '__main__':
         sys.stderr.write('''
 available commands:
     collect [notebook-name] - retrieve and organize the latest notes
+    generate                - alias to `rebuild'
     rebuild                 - rebuild static site
+    refresh [notebook-name] - collect + rebuild
 
 usage: {0} [action] [additional parameters?]
 '''.format(sys.argv[0]))
 
-    elif action == 'collect':
+    if action in ('collect', 'refresh'):
         if len(sys.argv) < 3:
             sys.stderr.write('error: missing required parameter: notebook-name\n')
             sys.exit(ERR_MISSING_REQUIRED_PARAM)
@@ -53,7 +55,7 @@ usage: {0} [action] [additional parameters?]
         myNotebook = sys.argv[2]
         Collector(myNotebook).run()
 
-    elif action == 'rebuild':
+    if action in ('rebuild', 'generate', 'refresh'):
         generator = HtmlGenerator()
         generator.generate()
 

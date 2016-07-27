@@ -1,5 +1,5 @@
 BeautifulSoup4==4.4.1
-git+git://github.com/evernote/evernote-sdk-python.git@8549be52c5480770210640b288f55d600fe2384d
+git+git://github.com/evernote/evernote-sdk-python.git@44d8485a21a29ab242321c0761258b89ad0bae4d
 jinja2==2.7.1
 simplejson
 unidecode==0.4.18

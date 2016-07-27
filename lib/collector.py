@@ -83,6 +83,8 @@ class Collector(object):
     def hydrateAndStore(self, partialNotes):
         numUpdated = 0
         for partialNote in partialNotes:
+            #if '%s' % partialNote.created != '1467826537000':
+            #    continue
             # args: authenticationToken, guid, withContent, withResourcesData, withResourcesRecognition, withResourcesAlternateData
             jsonFileName = '{0}/{1}.json'.format(settings.DATA_PATH, partialNote.created)
             pickleFileName = '{0}/{1}.pickle'.format(settings.DATA_PATH, partialNote.created)
