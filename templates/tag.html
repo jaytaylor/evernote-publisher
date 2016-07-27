@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Evernote Publisher - Tag: {{ tag.name }}{% endblock %}
+{% block title %}{{ tag.name }} | Evernote Publisher{% endblock %}
 
 {% block content %}
 <a href="..">back to listing index</a>
 <br />
-<h3>{{ tag.name }}</h3>
+<h3>Tag: {{ tag.name }}</h3>
 
 {% if tag.notes %}
 <div class="container">
