@@ -14,10 +14,10 @@ except ImportError:
     import pickle
 
 _evernoteBrokenCssFragments = (
-    'position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px',
-    'overflow:hidden|position:fixed;top:0px;left:0px',
-    'opacity:0',
-    'display:none !important',
+    r'position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px',
+    r'overflow:hidden|position:fixed;top:0px;left:0px',
+    r'opacity:0',
+    r'display:none !important',
 )
 evernoteStyleCleanerExpr = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:%s)([^"]*")' % '|'.join(_evernoteBrokenCssFragments), re.I)
 jsonFilenameToPickleExpr = re.compile(r'^(.*)\.json$', re.I)
@@ -27,14 +27,12 @@ class Note(object):
     def __init__(self, id, data, obj):
         self.id = id
         self.data = data
-        self.data['title'] = BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
-        self.data['urlencoded_title'] = urllib.quote_plus(self.data['title'].encode('utf-8'))
         self.obj = obj
         self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
 
         self.content = base64.b64decode(self.data['b64Content']).decode('utf-8')
 
-        # Cleanup Evernotes poor clipping CSS butchery.
+        # Cleanup Evernote's poor clipping CSS butchery.
         last = ''
         while last != self.content:
             last = self.content
@@ -42,6 +40,10 @@ class Note(object):
 
         # print self.data.keys() #dir(self.data)
         # print self.data['tagNames']
+
+        self.data['title'] = BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
+        tagStrings = map(lambda tag: tag['name'].encode('utf-8'), self.data.get('tags', []))
+        self.data['urlencoded_query'] = urllib.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
 
     def __getattr__(self, attr):
         """Pass-through to `data` keys when requrested attribute is not available."""
