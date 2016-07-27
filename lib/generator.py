@@ -15,9 +15,22 @@ except ImportError:
 
 _evernoteBrokenCssFragments = (
     r'position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px',
-    r'overflow:hidden|position:fixed;top:0px;left:0px',
-    r'opacity:0',
+    r'overflow:hidden|position:fixed;top:0px;left:0px', # GitHub.
+    r'opacity:0',                                       # GitHub.
+    r'box-sizing:border-box;float:right',               # GitHub.
+    r'position:static;visibility:visible;width:61px;height:20px;', # GitHub/Twitter tweet button.
     r'display:none !important',
+    r'(?:left|top):0px;(?:left|top):0px;width:100%;height:0px', # StackOverflow.
+    r'position:fixed;margin:0px;border:0px;padding:0px',        # StackOverflow.
+    r'rgb\(255, 255, 255\);position:fixed;left:0px;width:100%',                                                      # Quora.
+    r'float:left;height:16px;width:14px;',                                                                           # Quora.
+    r'display:table;width:100%;padding-left:88px;box-sizing:border-box',                                             # Quora.
+    r'filter:url\(http:\/\/gigaom.com\/wp-content\/themes\/vip\/gigaom5\/css\/img\/post-page-blur.svg#blur\);margin:0px;bottom:0px;-webkit-filter:blur\(5px\)',          # Gigaom.
+    r'left:0px;position:absolute;right:0px;background:rgb\(255, 255, 255\)',                                                                                             # Gigaom.
+    r'bottom:0px;left:0px;position:absolute;right:0px;top:0px;background:rgba\(0, 0, 0, 0.498039\)',                                                                     # Gigaom.
+    r'overflow-x:auto',   # Never good.
+    r'overflow-y:scroll', # Never good.
+#:    r'color:rgb\(255, 255, 255\);position:fixed;left:0px;width:100%;min-height:53px;box-sizing:border-box;z-index:800;font-size:14px;top:0px',  # Quora.
 )
 evernoteStyleCleanerExpr = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:%s)([^"]*")' % '|'.join(_evernoteBrokenCssFragments), re.I)
 jsonFilenameToPickleExpr = re.compile(r'^(.*)\.json$', re.I)
@@ -30,7 +43,7 @@ class Note(object):
         self.obj = obj
         self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
 
-        self.content = base64.b64decode(self.data['b64Content']).decode('utf-8')
+        self.content = base64.b64decode(self.data['b64Content']).decode('utf-8').replace('evernote', 'note')
 
         # Cleanup Evernote's poor clipping CSS butchery.
         last = ''
@@ -102,12 +115,16 @@ class HtmlGenerator(object):
             i = 1
             numAssets = len(resourcesAndFilenames)
             for resource, filename in resourcesAndFilenames:
-                if filename.lower().endswith('.pdf'):
-                    replacementMarkup = '<a href="%s/%s">View PDF: %s </a> (Asset %s/%s)' % (self.assetsRelPubPath, filename, filename, i, numAssets)
+                relPath = '%s/%s' % (self.assetsRelPubPath, filename)
+                filenameLower = filename.lower()
+                if filenameLower.endswith('.pdf'):
+                    replacementMarkup = '<a href="%s">View PDF: %s </a> (Asset %s/%s)' % (relPath, filename, i, numAssets)
+                elif filenameLower.endswith('.octet-stream') and resource.data.body[0:3].lower().startswith('<svg'):
+                    replacementMarkup = resource.data.body
                 else:
-                    replacementMarkup = '<a href="%s/%s"><img src="%s/%s" alt="Image (Asset %s/%s) alt="Image (Asset %s/%s)" /></a>' % (self.assetsRelPubPath, filename, self.assetsRelPubPath, filename, i, numAssets, i, numAssets)
+                    replacementMarkup = '<a href="%s"><img src="%s" alt="Image (Asset %s/%s) alt="Image (Asset %s/%s)" /></a>' % (relPath, relPath, i, numAssets, i, numAssets)
                 content = re.subn(r'<en-media(?:[^\/]|\/[^>])+/>', replacementMarkup, content, 1)[0]
-                # TODO: investigate "recognition" later.  Looks like it is iamge OCR.
+                # TODO: investigate "recognition" later.  Looks like it is image OCR, pretty cool!.
                 #if resource.recognition:
                 #    content += resource.recognition.body
                 i += 1
@@ -130,9 +147,11 @@ class HtmlGenerator(object):
         if not os.path.exists(settings.OUTPUT_PATH + '/tag'):
             os.makedirs(settings.OUTPUT_PATH + '/tag')
 
+        # environment-variable based override for development/testing purposes.
+        onlyNodeId = os.environ.get('ONLY_NODE_ID')
         for path in dataFiles:
-            #if '1467328549000' not in path:
-            #    continue
+            if onlyNodeId and onlyNodeId not in path:
+                continue
             jsonFileName = path[path.rindex('/') + 1:]
             destination = '{0}/api/{1}'.format(settings.OUTPUT_PATH, jsonFileName)
             shutil.copyfile(path, destination)
