@@ -13,7 +13,13 @@ try:
 except ImportError:
     import pickle
 
-evernoteStyleCleanerExpre = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px|overflow:hidden|position:fixed;top:0px;left:0px|opacity:0)([^"]*")', re.I)
+_evernoteBrokenCssFragments = (
+    'position:(?:absolute|fixed);(?:top:-10000px;)?(?:height|width):[01]px;(?:width|height):[01]px',
+    'overflow:hidden|position:fixed;top:0px;left:0px',
+    'opacity:0',
+    'display:none !important',
+)
+evernoteStyleCleanerExpr = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:%s)([^"]*")' % '|'.join(_evernoteBrokenCssFragments), re.I)
 jsonFilenameToPickleExpr = re.compile(r'^(.*)\.json$', re.I)
 jsonFilenameToPickle = lambda filename: jsonFilenameToPickleExpr.subn(r'\1.pickle', filename, 1)[0]
 
@@ -32,7 +38,7 @@ class Note(object):
         last = ''
         while last != self.content:
             last = self.content
-            self.content = evernoteStyleCleanerExpre.sub(r'\1\2', self.content)
+            self.content = evernoteStyleCleanerExpr.sub(r'\1\2', self.content)
 
         # print self.data.keys() #dir(self.data)
         # print self.data['tagNames']
@@ -90,11 +96,19 @@ class HtmlGenerator(object):
         def contentWithTranslatedAssets(note):
             content = note.content
             # Replace media objects in content with ones that actually exist :)
-            for resource, filename in note.resourceFilenameTuples():
-                content = re.subn(r'<en-media(?:[^\/]|\/[^>])+/>', '<img src="%s/%s"/>' % (self.assetsRelPubPath, filename), content, 1)[0]
+            resourcesAndFilenames = list(note.resourceFilenameTuples())
+            i = 1
+            numAssets = len(resourcesAndFilenames)
+            for resource, filename in resourcesAndFilenames:
+                if filename.lower().endswith('.pdf'):
+                    replacementMarkup = '<a href="%s/%s">View PDF: %s </a> (Asset %s/%s)' % (self.assetsRelPubPath, filename, filename, i, numAssets)
+                else:
+                    replacementMarkup = '<a href="%s/%s"><img src="%s/%s" alt="Image (Asset %s/%s) alt="Image (Asset %s/%s)" /></a>' % (self.assetsRelPubPath, filename, self.assetsRelPubPath, filename, i, numAssets, i, numAssets)
+                content = re.subn(r'<en-media(?:[^\/]|\/[^>])+/>', replacementMarkup, content, 1)[0]
                 # TODO: investigate "recognition" later.  Looks like it is iamge OCR.
                 #if resource.recognition:
                 #    content += resource.recognition.body
+                i += 1
             return content
         jinja2.filters.FILTERS['contentWithTranslatedAssets'] = contentWithTranslatedAssets
 
@@ -115,7 +129,7 @@ class HtmlGenerator(object):
             os.makedirs(settings.OUTPUT_PATH + '/tag')
 
         for path in dataFiles:
-            #if '1467826537000' not in path:
+            #if '1467328549000' not in path:
             #    continue
             jsonFileName = path[path.rindex('/') + 1:]
             destination = '{0}/api/{1}'.format(settings.OUTPUT_PATH, jsonFileName)
