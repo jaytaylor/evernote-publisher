@@ -30,9 +30,10 @@ _evernoteBrokenCssFragments = (
     r'bottom:0px;left:0px;position:absolute;right:0px;top:0px;background:rgba\(0, 0, 0, 0.498039\)',                                                                     # Gigaom.
     r'overflow-x:auto',   # Never good.
     r'overflow-y:scroll', # Never good.
+    r'''height:12px;width:12px;background-image:url\(['"]?[^\)]*facebook\.com\/rsrc\.php[^\)]*\)''', # Facebook.
 #:    r'color:rgb\(255, 255, 255\);position:fixed;left:0px;width:100%;min-height:53px;box-sizing:border-box;z-index:800;font-size:14px;top:0px',  # Quora.
 )
-evernoteStyleCleanerExpr = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:%s)([^"]*")' % '|'.join(_evernoteBrokenCssFragments), re.I)
+evernoteStyleCleanerExpr = re.compile(r'([ \t\r\n]style[ \t\r\n]*=[ \t\r\n]*"[^"]*)(?:%s)([^"]*")' % r'|'.join(_evernoteBrokenCssFragments), re.I)
 jsonFilenameToPickleExpr = re.compile(r'^(.*)\.json$', re.I)
 jsonFilenameToPickle = lambda filename: jsonFilenameToPickleExpr.subn(r'\1.pickle', filename, 1)[0]
 
