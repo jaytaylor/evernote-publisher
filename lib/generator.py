@@ -25,6 +25,7 @@ _evernoteBrokenCssFragments = (
     r'rgb\(255, 255, 255\);position:fixed;left:0px;width:100%',                                                      # Quora.
     r'float:left;height:16px;width:14px;',                                                                           # Quora.
     r'display:table;width:100%;padding-left:88px;box-sizing:border-box',                                             # Quora.
+    r'z-index:800(?:[^"]*(?:background|color): *rgb\(255, *255, *255\))+',                                           # Quora.
     r'filter:url\(http:\/\/gigaom.com\/wp-content\/themes\/vip\/gigaom5\/css\/img\/post-page-blur.svg#blur\);margin:0px;bottom:0px;-webkit-filter:blur\(5px\)',          # Gigaom.
     r'left:0px;position:absolute;right:0px;background:rgb\(255, 255, 255\)',                                                                                             # Gigaom.
     r'bottom:0px;left:0px;position:absolute;right:0px;top:0px;background:rgba\(0, 0, 0, 0.498039\)',                                                                     # Gigaom.

@@ -55,7 +55,7 @@ usage: {0} [action] [additional parameters?]
         myNotebook = sys.argv[2]
         Collector(myNotebook).run()
 
-    if action in ('rebuild', 'generate', 'refresh'):
+    elif action in ('rebuild', 'generate', 'refresh'):
         generator = HtmlGenerator()
         generator.generate()
 
