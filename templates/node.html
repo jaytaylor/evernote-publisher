@@ -8,11 +8,17 @@
 
 <div class="title">
 <h3>{{ note.title }}</h3>
+[<a href="https://encrypted.google.com/search?q={{ note.urlencoded_query }}" target="_blank">web search</a>]
 </div>
 
 <div class="container">
-[<a href="https://encrypted.google.com/search?q={{ note.urlencoded_query }}" target="_blank">web</a>]
+{% if note.sourceUrl %}
+<a href="{{ note.sourceUrl }}" target="_blank">Original source</a> (<a href="{{ note.sourceDomainUrl }}" target="_blank">{{ note.sourceDomain }}</a>)
+{% else %}
+<em>Original source unknown</em>
+{% endif %}
 </div>
+
 {% if note.tags %}
 <div class="container">
 Tags:

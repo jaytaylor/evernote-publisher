@@ -64,7 +64,7 @@ class Note(object):
         self.data['urlencoded_query'] = urllib.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
 
     def __getattr__(self, attr):
-        """Pass-through to `data` keys when requrested attribute is not available."""
+        """Pass-through from self to `data` keys and then `object' attributes."""
         if attr in self.__dict__:
             return getattr(self, attr)
 
@@ -74,7 +74,32 @@ class Note(object):
         if hasattr(self.obj, attr):
             return getattr(self.obj, attr)
 
+        if hasattr(self.obj.attributes, attr):
+            return getattr(self.obj.attributes, attr)
+
         raise AttributeError("'Note' object has no attribute '{0}'".format(attr))
+
+    @property
+    def sourceUrl(self):
+        sourceUrl = self.sourceURL
+        if not sourceUrl:
+            return ''
+        return sourceUrl
+
+    @property
+    def sourceDomain(self):
+        if not self.sourceUrl:
+            return ''
+        domain = re.sub(r'^(?:(?:http:)?//)?([^/]+).*$', r'\1', self.sourceUrl, re.I)
+        return domain
+
+    @property
+    def sourceDomainUrl(self):
+        if not self.sourceUrl:
+            return ''
+        protocol = 'http%s' % ('s' if self.sourceUrl.lower().startswith('https') else '')
+        domainUrl = '%s://%s/' % (protocol, self.sourceDomain)
+        return domainUrl
 
     def resourceFilenameTuples(self):
         out = []
