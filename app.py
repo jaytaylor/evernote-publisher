@@ -41,7 +41,9 @@ if __name__ == '__main__':
 available commands:
     collect [notebook-name] - retrieve and organize the latest notes
     generate                - alias to `rebuild'
+    generate-indices        - alias to `rebuild-indices'
     rebuild                 - rebuild static site
+    rebuild-indices         - rebuild static site indices *only*
     refresh [notebook-name] - collect + rebuild
 
 usage: {0} [action] [additional parameters?]
@@ -58,6 +60,10 @@ usage: {0} [action] [additional parameters?]
     elif action in ('rebuild', 'generate', 'refresh'):
         generator = HtmlGenerator()
         generator.generate()
+
+    elif action in ('rebuild-indices', 'generate-indices', 'refresh-indices'):
+        generator = HtmlGenerator()
+        generator.generateIndices()
 
     else:
         sys.stderr.write('error: unrecognized action: "{0}", view help by running `{1} help`\n'.format(action, sys.argv[0]))

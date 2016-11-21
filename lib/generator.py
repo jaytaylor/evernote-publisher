@@ -42,19 +42,23 @@ jsonFilenameToPickleExpr = re.compile(r'^(.*)\.json$', re.I)
 jsonFilenameToPickle = lambda filename: jsonFilenameToPickleExpr.subn(r'\1.pickle', filename, 1)[0]
 
 class Note(object):
-    def __init__(self, id, data, obj):
-        self.id = id
+    def __init__(self, data, obj, path, indicesOnly=False):
         self.data = data
         self.obj = obj
         self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
+        self.path = path
+        self.jsonFileName = path[path.rindex('/') + 1:]
+        self.destinationFileName = '{0}/api/{1}'.format(settings.OUTPUT_PATH, self.jsonFileName)
+        self.id = self.jsonFileName[0:self.jsonFileName.index('.')]
 
         self.content = base64.b64decode(self.data['b64Content']).decode('utf-8').replace('evernote', 'note')
 
-        # Cleanup Evernote's poor clipping CSS butchery.
-        last = ''
-        while last != self.content:
-            last = self.content
-            self.content = evernoteStyleCleanerExpr.sub(r'\1\2', self.content)
+        if not indicesOnly:
+            # Cleanup Evernote's poor clipping CSS butchery.
+            last = ''
+            while last != self.content:
+                last = self.content
+                self.content = evernoteStyleCleanerExpr.sub(r'\1\2', self.content)
 
         # print self.data.keys() #dir(self.data)
         # print self.data['tagNames']
@@ -165,11 +169,15 @@ class HtmlGenerator(object):
         self.templates = dict((name[10:], open(name, 'rb').read()) for name in glob.glob('templates/*.html'))
         self.env.loader = jinja2.DictLoader(self.templates)
 
+    def generateIndices(self):
+        """Indices only."""
+        if os.environ.get('ONLY_NODE_ID'):
+            raise Exception('ONLY_NODE_ID env var not compatible with generate-indices')
+        notes = self.getNotes(indicesOnly=True)
+        self.makeTags(notes)
+
     def generate(self):
         """Read and render Note data."""
-        listing = []
-        dataFiles = glob.iglob('{0}/*.json'.format(settings.DATA_PATH))
-
         if not os.path.exists(settings.OUTPUT_PATH + '/api'):
             os.makedirs(settings.OUTPUT_PATH + '/api')
         if not os.path.exists(settings.OUTPUT_PATH + '/node'):
@@ -177,23 +185,40 @@ class HtmlGenerator(object):
         if not os.path.exists(settings.OUTPUT_PATH + '/tag'):
             os.makedirs(settings.OUTPUT_PATH + '/tag')
 
-        # environment-variable based override for development/testing purposes.
-        onlyNodeId = os.environ.get('ONLY_NODE_ID')
-        for path in dataFiles:
-            if onlyNodeId and onlyNodeId not in path:
-                continue
-            jsonFileName = path[path.rindex('/') + 1:]
-            destination = '{0}/api/{1}'.format(settings.OUTPUT_PATH, jsonFileName)
-            shutil.copyfile(path, destination)
+        listing = []
+        dataFiles = glob.iglob('{0}/*.json'.format(settings.DATA_PATH))
 
+        notes = self.getNotes()
+
+        onlyNodeId = os.environ.get('ONLY_NODE_ID')
+        for note in notes:
+            if onlyNodeId and onlyNodeId not in note.path:
+                continue
+            shutil.copyfile(note.path, note.destinationFileName)
+
+        self.makeIndex(notes)
+
+        map(self.makeNote, notes)
+
+        self.makeTags(notes)
+
+        #serializedDataFiles = glob.iglob('{0}/*.pickle'.format(settings.DATA_PATH))
+        #for fileName in serializedDataFiles:
+        #    renderNote(fileName)
+
+    def getNotes(self, indicesOnly=False):
+        listing = []
+        dataFiles = glob.iglob('{0}/*.json'.format(settings.DATA_PATH))
+
+        # environment-variable based override for development/testing purposes.
+        for path in dataFiles:
             with open(path, 'r') as fh:
                 data = json.load(fh)
 
             with open(jsonFilenameToPickle(path), 'r') as fh:
                 obj = pickle.load(fh)
 
-            noteId = jsonFileName[0:jsonFileName.index('.')]
-            note = Note(noteId, data, obj)
+            note = Note(data, obj, path, indicesOnly)
             listing.append(note)
 
         notes = sorted(
@@ -205,15 +230,7 @@ class HtmlGenerator(object):
             reverse=True,
         )
 
-        self.makeIndex(notes)
-
-        map(self.makeNote, notes)
-
-        self.makeTags(notes)
-
-        #serializedDataFiles = glob.iglob('{0}/*.pickle'.format(settings.DATA_PATH))
-        #for fileName in serializedDataFiles:
-        #    renderNote(fileName)
+        return notes
 
     @staticmethod
     def arrangeNotesByTag(notes):
@@ -257,7 +274,7 @@ class HtmlGenerator(object):
         }
 
         for filePath, tags in tagIndices.items():
-            self.render('tagIndex.html', filePath, **{'tags': tags})
+            self.render('tagIndex.html', filePath, **{'tags': tags, 'filePath': filePath})
 
     def makeNote(self, note):
         """Render and write out note."""

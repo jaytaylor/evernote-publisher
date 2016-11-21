@@ -13,9 +13,28 @@ by tag name <a href="index.html">asc</a> <a href="by-tag-desc.html">desc</a>
 <br>
 by tag frequency <a href="by-frequency-asc.html">asc</a> <a href="by-frequency-desc.html">desc</a>
 
+{% if 'frequency' not in filePath -%}
+<div>
+{% set last = '' %}
+{% for tag in tags -%}
+{% if tag.name[0] != last -%}
+    {% set last = tag.name[0] %}
+    <a href="#{{ last }}">{{ last | upper }}</a>
+{%- endif %}
+{%- endfor %}
+</div>
+{%- endif %}
+
 <br>
 <ul style="list-style-type:none">
+{% set last = '' %}
 {% for tag in tags %}
+{% if 'frequency' not in filePath -%}
+{% if tag.name[0] != last -%}
+    {% set last = tag.name[0] %}
+    <li class="separator"><h3><a name="{{ last }}" href="#{{ last }}">{{ last | upper }}</a></h3></li>
+{%- endif %}
+{%- endif %}
     <li><a href="{{ tag.name }}.html">{{ tag.name }}</a> ({{ tag.notes|length }})</li>
 {% endfor %}
 </ul>
