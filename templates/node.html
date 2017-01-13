@@ -13,7 +13,7 @@
 
 <div class="container">
 {% if note.sourceUrl %}
-<a href="{{ note.sourceUrl }}" target="_blank">Original source</a> (<a href="{{ note.sourceDomainUrl }}" target="_blank">{{ note.sourceDomain }}</a>)
+<a href="{{ note.sourceUrl }}" target="_blank">Original source</a> (<i>{{ note.sourceDomain }}</i>)
 {% else %}
 <em>Original source unknown</em>
 {% endif %}

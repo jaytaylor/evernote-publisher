@@ -94,7 +94,7 @@ class Note(object):
     def sourceDomain(self):
         if not self.sourceUrl:
             return ''
-        domain = re.sub(r'^(?:(?:http:)?//)?([^/]+).*$', r'\1', self.sourceUrl, re.I)
+        domain = re.sub(r'^(?:(?:https?:)?//)?([^/]+).*$', r'\1', self.sourceUrl, re.I)
         return domain
 
     @property
