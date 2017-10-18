@@ -26,8 +26,7 @@ def initialize():
         if not os.path.exists(path):
             os.mkdir(path)
 
-
-if __name__ == '__main__':
+def main():
     initialize()
 
     if len(sys.argv) < 2:
@@ -68,4 +67,16 @@ usage: {0} [action] [additional parameters?]
     else:
         sys.stderr.write('error: unrecognized action: "{0}", view help by running `{1} help`\n'.format(action, sys.argv[0]))
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception, e:
+        sys.stderr.write(('-' * 80) + '\n')
+        sys.stderr.write('Yikes... there was a problem.\n')
+        sys.stderr.write('if it looks like a token auth issue you can grab a new one from:\n')
+        sys.stderr.write('https://www.evernote.com/api/DeveloperToken.action\n')
+        sys.stderr.write(('-' * 80) + '\n')
+        raise e
 
