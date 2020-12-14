@@ -72,11 +72,11 @@ usage: {0} [action] [additional parameters?]
 if __name__ == '__main__':
     try:
         main()
-    except Exception, e:
+    except Exception:
         sys.stderr.write(('-' * 80) + '\n')
         sys.stderr.write('Yikes... there was a problem.\n')
         sys.stderr.write('if it looks like a token auth issue you can grab a new one from:\n')
         sys.stderr.write('https://www.evernote.com/api/DeveloperToken.action\n')
         sys.stderr.write(('-' * 80) + '\n')
-        raise e
+        raise
 

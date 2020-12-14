@@ -90,6 +90,9 @@ class Collector(object):
             pickleFileName = '{0}/{1}.pickle'.format(settings.DATA_PATH, partialNote.created)
             if os.path.exists(jsonFileName) and os.path.exists(pickleFileName):
                 with open(jsonFileName, 'r') as fh:
+                    # TODO: If JSON parsing fails, write an error log in
+                    #       evernote-publisher root directory so Jay can easily
+                    #       see there is a problem.
                     detail = json.load(fh)
                 if isinstance(detail, dict) and detail.get('updated', None) == partialNote.updated:
                     print '[info] Already up to date for note=%s' % (partialNote.title,)
