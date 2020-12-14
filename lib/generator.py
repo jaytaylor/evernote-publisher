@@ -2,14 +2,14 @@
 
 """Note renderer."""
 
-import base64, datetime, simplejson as json, glob, os, re, settings, shutil, unicodedata, urllib
+import base64, datetime, simplejson as json, glob, os, re, settings, shutil, unicodedata, urllib.request, urllib.parse, urllib.error
 from bs4 import BeautifulSoup
 import jinja2
 from unidecode import unidecode
 from .util import fileGetContents, safeUnicode
 
 try:
-    import cPickle as pickle
+    import pickle as pickle
 except ImportError:
     import pickle
 
@@ -64,8 +64,8 @@ class Note(object):
         # print self.data['tagNames']
 
         self.data['title'] = BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
-        tagStrings = map(lambda tag: tag['name'].encode('utf-8'), self.data.get('tags', []))
-        self.data['urlencoded_query'] = urllib.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
+        tagStrings = [tag['name'].encode('utf-8') for tag in self.data.get('tags', [])]
+        self.data['urlencoded_query'] = urllib.parse.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
 
     def __getattr__(self, attr):
         """Pass-through from self to `data` keys and then `object' attributes."""
@@ -198,7 +198,7 @@ class HtmlGenerator(object):
 
         self.makeIndex(notes)
 
-        map(self.makeNote, notes)
+        list(map(self.makeNote, notes))
 
         self.makeTags(notes)
 
@@ -250,13 +250,13 @@ class HtmlGenerator(object):
     def notesByTag(self, notes, order='asc'):
         """@return list of tags, each tag includes notes."""
         byTag = self.arrangeNotesByTag(notes)
-        values = sorted(byTag.values(), key=lambda tag: tag['name'], reverse=order == 'desc')
+        values = sorted(list(byTag.values()), key=lambda tag: tag['name'], reverse=order == 'desc')
         return values
 
     def notesByTagFrequency(self, notes, order='asc'):
         """@return list of tags, each tag includes notes."""
         byTag = self.arrangeNotesByTag(notes)
-        values = sorted(byTag.values(), key=lambda tag: tag['name'])
+        values = sorted(list(byTag.values()), key=lambda tag: tag['name'])
         values = sorted(values, key=lambda tag: len(byTag[tag['name']]['notes']), reverse=order == 'desc')
         return values
 
@@ -273,7 +273,7 @@ class HtmlGenerator(object):
             'tag/by-frequency-desc.html': self.notesByTagFrequency(notes, order='desc'),
         }
 
-        for filePath, tags in tagIndices.items():
+        for filePath, tags in list(tagIndices.items()):
             self.render('tagIndex.html', filePath, **{'tags': tags, 'filePath': filePath})
 
     def makeNote(self, note):

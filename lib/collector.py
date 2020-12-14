@@ -17,7 +17,7 @@ from evernote.api.client import EvernoteClient
 from evernote.edam.notestore.ttypes import NoteFilter
 
 try:
-    import cPickle as pickle
+    import pickle as pickle
 except ImportError:
     import pickle
 
@@ -63,21 +63,21 @@ class Collector(object):
     def resolveNotebook(self):
         notebooks = self.noteStore.listNotebooks()
 
-        filteredNotebooks = filter(lambda nb: self.notebookName.lower() in nb.name.lower(), notebooks)
+        filteredNotebooks = [nb for nb in notebooks if self.notebookName.lower() in nb.name.lower()]
 
         if len(filteredNotebooks) < 1:
-            sys.stderr.write('error: requested notebook "{0}" not found (candidates were: {1})\n'.format(self.notebookName, ', '.join(map(lambda nb: nb.name, notebooks))))
+            sys.stderr.write('error: requested notebook "{0}" not found (candidates were: {1})\n'.format(self.notebookName, ', '.join([nb.name for nb in notebooks])))
             sys.exit(ERR_NOTEBOOK_NOT_FOUND)
 
         notebook = filteredNotebooks[0]
-        print 'info: found notebook "{0}"'.format(notebook.name)
+        print('info: found notebook "{0}"'.format(notebook.name))
         return notebook
 
     def getNoteList(self, notebook, offset):
         """Retrieve the NoteList for the named notebook."""
         pageSize = 49
         noteList = self.noteStore.findNotes(settings.developerToken, self.defaultSearchFilter(notebook), offset, pageSize)
-        print 'offset=%s count=%s' % (offset, len(noteList.notes))
+        print('offset=%s count=%s' % (offset, len(noteList.notes)))
         return noteList
 
     def hydrateAndStore(self, partialNotes):
@@ -95,7 +95,7 @@ class Collector(object):
                     #       see there is a problem.
                     detail = json.load(fh)
                 if isinstance(detail, dict) and detail.get('updated', None) == partialNote.updated:
-                    print '[info] Already up to date for note=%s' % (partialNote.title,)
+                    print('[info] Already up to date for note=%s' % (partialNote.title,))
                     continue
 
             note = self.getNote(partialNote.guid)
@@ -169,22 +169,22 @@ class Collector(object):
 
     def loadTagCache(self):
         """Try to load tag cache from disk."""
-        print 'info: loading tag cache..'
+        print('info: loading tag cache..')
 
         try:
             with open(TAG_CACHE_FILENAME, 'r') as fh:
                 self.tagCache = pickle.loads(fh.read())
-            print 'info: tag cache successfully loadded'
+            print('info: tag cache successfully loadded')
 
-        except Exception, e:
-           print 'notice: pre-existing tag cache not found: {0}'.format(e)
+        except Exception as e:
+           print('notice: pre-existing tag cache not found: {0}'.format(e))
 
     def __del__(self):
         """Persist tag cache to disk."""
         if len(self.tagCache) == 0:
            return
 
-        print 'info: shutdown: saving tag cache to disk...'
+        print('info: shutdown: saving tag cache to disk...')
         with open(TAG_CACHE_FILENAME, 'w') as fh:
             fh.write(pickle.dumps(self.tagCache))
 
@@ -194,8 +194,8 @@ class Collector(object):
 
     def getNoteTags(self, note):
         """Given a note, retrieves associated tag records and converts them to dicts."""
-        print 'guids=%s for note=%s' % (note.tagGuids, note.title)
-        return map(self.tagToDict, map(self.resolveGuidToTag, note.tagGuids or []))
+        print('guids=%s for note=%s' % (note.tagGuids, note.title))
+        return list(map(self.tagToDict, list(map(self.resolveGuidToTag, note.tagGuids or []))))
 
     def resolveGuidToTag(self, guid):
         """Given a tag guid, will look in cache and return cached item, otherwise will pull the tag from the Evernote API."""
@@ -204,7 +204,7 @@ class Collector(object):
            return self.tagCache[guid]
 
         # Otherwise, retrieve a fresh list of all tags on the account.
-        print 'info: fetching full tag list for the account'
+        print('info: fetching full tag list for the account')
         tags = self.noteStore.listTags(settings.developerToken)
         for tag in tags:
             # Add to cache.
@@ -215,7 +215,7 @@ class Collector(object):
             return self.tagCache[guid]
 
         # Otherwise, this is unexpected.  Attempt a direct lookup.
-        print 'warn: requested tag guid not found in full listing, will attempt a direct lookup'
+        print('warn: requested tag guid not found in full listing, will attempt a direct lookup')
         tag = self.noteStore.getTag(settings.developerToken, guid)
         # Add to cache.
         self.tagCache[tag.guid] = tag
@@ -224,4 +224,4 @@ class Collector(object):
     @staticmethod
     def tagToDict(tag):
         """Convert a Tag object to a dict representation."""
-        return dict(map(lambda key: (key, getattr(tag, key)), ('updateSequenceNum', 'guid', 'name', 'parentGuid')))
+        return dict([(key, getattr(tag, key)) for key in ('updateSequenceNum', 'guid', 'name', 'parentGuid')])
