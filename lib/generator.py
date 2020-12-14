@@ -6,6 +6,7 @@ import base64, datetime, simplejson as json, glob, os, re, settings, shutil, uni
 from bs4 import BeautifulSoup
 import jinja2
 from unidecode import unidecode
+from .logger import logger
 from .util import fileGetContents, safeUnicode
 
 try:
@@ -45,7 +46,7 @@ class Note(object):
     def __init__(self, data, obj, path, indicesOnly=False):
         self.data = data
         self.obj = obj
-        self.createdTs = datetime.datetime.fromtimestamp(self.data['created']/1000.0)
+        self.createdTs = datetime.datetime.fromtimestamp(self.data['created'] / 1000.0)
         self.path = path
         self.jsonFileName = path[path.rindex('/') + 1:]
         self.destinationFileName = '{0}/api/{1}'.format(settings.OUTPUT_PATH, self.jsonFileName)
@@ -64,8 +65,10 @@ class Note(object):
         # print self.data['tagNames']
 
         self.data['title'] = BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
-        tagStrings = [tag['name'].encode('utf-8') for tag in self.data.get('tags', [])]
-        self.data['urlencoded_query'] = urllib.parse.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
+        #tagStrings = [tag['name'].encode('utf-8') for tag in self.data.get('tags', [])]
+        tagStrings = [('%s' % (tag['name'],)) for tag in self.data.get('tags', [])]
+        #self.data['urlencoded_query'] = urllib.parse.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
+        self.data['urlencoded_query'] = urllib.parse.quote_plus('%s %s' % (('%s' % (self.data['title'],)), ' '.join(tagStrings)))
 
     def __getattr__(self, attr):
         """Pass-through from self to `data` keys and then `object' attributes."""
@@ -117,7 +120,7 @@ class Note(object):
 
 #def renderNote(fileName):
 #    """Render a single note."""
-#    with open(fileName, 'r') as fh:
+#    with open(fileName, 'rb') as fh:
 #        print 'fileName={fileName}'.format(fileName)
 #        note = pickle.load(fh)
 #        data = {
@@ -166,7 +169,7 @@ class HtmlGenerator(object):
         jinja2.filters.FILTERS['contentWithTranslatedAssets'] = contentWithTranslatedAssets
 
         self.env = jinja2.environment.Environment()
-        self.templates = dict((name[10:], open(name, 'rb').read()) for name in glob.glob('templates/*.html'))
+        self.templates = dict((name[10:], open(name, 'r').read()) for name in glob.glob('templates/*.html'))
         self.env.loader = jinja2.DictLoader(self.templates)
 
     def generateIndices(self):
@@ -215,8 +218,8 @@ class HtmlGenerator(object):
             with open(path, 'r') as fh:
                 data = json.load(fh)
 
-            with open(jsonFilenameToPickle(path), 'r') as fh:
-                obj = pickle.load(fh)
+            with open(jsonFilenameToPickle(path), 'rb') as fh:
+                obj = pickle.load(fh, encoding='latin1')
 
             note = Note(data, obj, path, indicesOnly)
             listing.append(note)
@@ -290,7 +293,7 @@ class HtmlGenerator(object):
         if 'note' in kw:
             self.dumpAssets(kw['note'])
         rendered = t.render(**kw)
-        with open('{0}/{1}'.format(settings.OUTPUT_PATH, targetFile), 'w') as fh:
+        with open('{0}/{1}'.format(settings.OUTPUT_PATH, targetFile), 'wb') as fh:
             fh.write(rendered.encode('utf-8'))
 
     def dumpAssets(self, note):
@@ -298,6 +301,6 @@ class HtmlGenerator(object):
         if not os.path.exists(assetsPath):
             os.makedirs(assetsPath)
         for resource, filename in note.resourceFilenameTuples():
-            with open('%s/%s' % (assetsPath, filename), 'wb') as fh:
+            with open('%s/%s' % (assetsPath, filename), 'w' if type(resource.data.body) is str else 'wb') as fh:
                 fh.write(resource.data.body)
 

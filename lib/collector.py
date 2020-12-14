@@ -66,40 +66,66 @@ class Collector(object):
         filteredNotebooks = [nb for nb in notebooks if self.notebookName.lower() in nb.name.lower()]
 
         if len(filteredNotebooks) < 1:
-            sys.stderr.write('error: requested notebook "{0}" not found (candidates were: {1})\n'.format(self.notebookName, ', '.join([nb.name for nb in notebooks])))
+            logger.error('requested notebook "{0}" not found (candidates were: {1})\n'.format(self.notebookName, ', '.join([nb.name for nb in notebooks])))
             sys.exit(ERR_NOTEBOOK_NOT_FOUND)
 
         notebook = filteredNotebooks[0]
-        print('info: found notebook "{0}"'.format(notebook.name))
+        logger.info('found notebook "{0}"'.format(notebook.name))
         return notebook
 
     def getNoteList(self, notebook, offset):
         """Retrieve the NoteList for the named notebook."""
         pageSize = 49
         noteList = self.noteStore.findNotes(settings.developerToken, self.defaultSearchFilter(notebook), offset, pageSize)
-        print('offset=%s count=%s' % (offset, len(noteList.notes)))
+        logger.debug('-> offset=%s count=%s' % (offset, len(noteList.notes)))
         return noteList
 
     def hydrateAndStore(self, partialNotes):
         numUpdated = 0
         for partialNote in partialNotes:
+            #if partialNote.guid != '26cd3186-1044-4d0c-b1a3-7ec47f1a0549':
+            #    continue
             #if '%s' % partialNote.created != '1467826537000':
             #    continue
             # args: authenticationToken, guid, withContent, withResourcesData, withResourcesRecognition, withResourcesAlternateData
             jsonFileName = '{0}/{1}.json'.format(settings.DATA_PATH, partialNote.created)
             pickleFileName = '{0}/{1}.pickle'.format(settings.DATA_PATH, partialNote.created)
             if os.path.exists(jsonFileName) and os.path.exists(pickleFileName):
+                logger.debug('jsonFileName=%s', jsonFileName)
                 with open(jsonFileName, 'r') as fh:
                     # TODO: If JSON parsing fails, write an error log in
                     #       evernote-publisher root directory so Jay can easily
                     #       see there is a problem.
                     detail = json.load(fh)
                 if isinstance(detail, dict) and detail.get('updated', None) == partialNote.updated:
-                    print('[info] Already up to date for note=%s' % (partialNote.title,))
+                    logger.debug('Already up to date for note=%s' % (partialNote.title,))
                     continue
 
             note = self.getNote(partialNote.guid)
             tags = self.getNoteTags(note)
+
+            #logger.debug('b64Content: %s' % (type(note.content)))
+            data = {
+                'title': BeautifulSoup(note.title, 'html.parser').string,
+                #'b64Title': base64.b64encode(note.title),
+                'guid': note.guid,
+                'created': note.created,
+                'updated': note.updated,
+                'deleted': note.deleted,
+                'b64Content': base64.b64encode(note.content.encode('utf-8')),
+                'b64ContentHash': base64.b64encode(note.contentHash),
+                'contentLength': note.contentLength,
+                'tags': tags,
+                'tagNames': note.tagNames,
+                'tagGuids': note.tagGuids,
+            }
+
+            with open(pickleFileName, 'wb') as fh:
+                pickle.dump(note, fh)
+
+            with open(jsonFileName, 'w') as fh:
+                json.dump(data, fh)
+
 #            out = '''
 #    title: {title}
 #    created: {created}
@@ -118,28 +144,9 @@ class Collector(object):
             # print type(note.contentHash), note.contentHash
             # print dir(note)
             # print note.tagNames
-            data = {
-                'title': BeautifulSoup(note.title, 'html.parser').string,
-                #'b64Title': base64.b64encode(note.title),
-                'guid': note.guid,
-                'created': note.created,
-                'updated': note.updated,
-                'deleted': note.deleted,
-                'b64Content': base64.b64encode(note.content),
-                'b64ContentHash': base64.b64encode(note.contentHash),
-                'contentLength': note.contentLength,
-                'tags': tags,
-                'tagNames': note.tagNames,
-                'tagGuids': note.tagGuids,
-            }
 
             #print dir(note)
             #print str(note.attributes
-            with open(pickleFileName, 'w') as fh:
-                pickle.dump(note, fh)
-
-            with open(jsonFileName, 'w') as fh:
-                json.dump(data, fh)
 
             numUpdated += 1
 
@@ -154,38 +161,37 @@ class Collector(object):
 
     def localCountsMatchRemote(self, notebook):
         localJsonCount = len(glob.glob('{0}/[0-9]*.json'.format(settings.DATA_PATH)))
-        logger.debug('local json len=%s', localJsonCount)
         localPickleCount = len(glob.glob('{0}/[0-9]*.pickle'.format(settings.DATA_PATH)))
-        logger.debug('local pikl len=%s', localPickleCount)
         if localJsonCount != localPickleCount:
+            logger.debug('local-json-len=%s local-pikl-len=%s', localJsonCount, localPickleCount)
             return False
         if self.remoteNoteCounts is None:
             self.remoteNoteCounts = self.noteStore.findNoteCounts(settings.developerToken, self.defaultSearchFilter(notebook), False)
         remoteCount = self.remoteNoteCounts.notebookCounts[notebook.guid]
-        logger.debug('remot book len=%s', remoteCount)
+        logger.debug('local-json-len=%s local-pikl-len=%s remote-book-len=%s', localJsonCount, localPickleCount, remoteCount)
         if localPickleCount != remoteCount and localPickleCount != remoteCount-1: # There seems to be a counting bug on Evernotes side.
             return False
         return True
 
     def loadTagCache(self):
         """Try to load tag cache from disk."""
-        print('info: loading tag cache..')
+        logger.info('loading tag cache..')
 
         try:
-            with open(TAG_CACHE_FILENAME, 'r') as fh:
-                self.tagCache = pickle.loads(fh.read())
-            print('info: tag cache successfully loadded')
+            with open(TAG_CACHE_FILENAME, 'rb') as fh:
+                self.tagCache = pickle.loads(fh.read(), encoding='latin1')
+            logger.info('tag cache successfully loadded')
 
-        except Exception as e:
-           print('notice: pre-existing tag cache not found: {0}'.format(e))
+        except Exception:
+            logger.exception('notice: pre-existing tag cache not found or loading failed')
 
     def __del__(self):
         """Persist tag cache to disk."""
         if len(self.tagCache) == 0:
            return
 
-        print('info: shutdown: saving tag cache to disk...')
-        with open(TAG_CACHE_FILENAME, 'w') as fh:
+        logger.info('shutdown: saving tag cache to disk...')
+        with open(TAG_CACHE_FILENAME, 'wb') as fh:
             fh.write(pickle.dumps(self.tagCache))
 
     def getNote(self, guid):
@@ -194,7 +200,7 @@ class Collector(object):
 
     def getNoteTags(self, note):
         """Given a note, retrieves associated tag records and converts them to dicts."""
-        print('guids=%s for note=%s' % (note.tagGuids, note.title))
+        logger.info('guids=%s for note=%s' % (note.tagGuids, note.title))
         return list(map(self.tagToDict, list(map(self.resolveGuidToTag, note.tagGuids or []))))
 
     def resolveGuidToTag(self, guid):
@@ -204,7 +210,7 @@ class Collector(object):
            return self.tagCache[guid]
 
         # Otherwise, retrieve a fresh list of all tags on the account.
-        print('info: fetching full tag list for the account')
+        logger.info('fetching full tag list for the account')
         tags = self.noteStore.listTags(settings.developerToken)
         for tag in tags:
             # Add to cache.
@@ -215,7 +221,7 @@ class Collector(object):
             return self.tagCache[guid]
 
         # Otherwise, this is unexpected.  Attempt a direct lookup.
-        print('warn: requested tag guid not found in full listing, will attempt a direct lookup')
+        logger.warn('requested tag guid not found in full listing, will attempt a direct lookup')
         tag = self.noteStore.getTag(settings.developerToken, guid)
         # Add to cache.
         self.tagCache[tag.guid] = tag
