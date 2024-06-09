@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Evernote Publisher - Tags{% endblock %}
+{% block title %}Tags - Jay Taylor's notes{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -15,11 +15,11 @@ by tag frequency <a href="by-frequency-asc.html">asc</a> <a href="by-frequency-d
 
 {% if 'frequency' not in filePath -%}
 <div>
-{% set last = '' %}
+{% set ns = namespace(last='') %}
 {% for tag in tags -%}
-{% if tag.name[0] != last -%}
-    {% set last = tag.name[0] %}
-    <a href="#{{ last }}">{{ last | upper }}</a>
+{% if tag.name[0] != ns.last -%}
+    {% set ns.last = tag.name[0] %}
+    <a href="#{{ ns.last }}">{{ ns.last | upper }}</a>
 {%- endif %}
 {%- endfor %}
 </div>
@@ -27,12 +27,12 @@ by tag frequency <a href="by-frequency-asc.html">asc</a> <a href="by-frequency-d
 
 <br>
 <ul style="list-style-type:none">
-{% set last = '' %}
+{% set ns = namespace(last='') %}
 {% for tag in tags %}
 {% if 'frequency' not in filePath -%}
-{% if tag.name[0] != last -%}
-    {% set last = tag.name[0] %}
-    <li class="separator"><h3><a name="{{ last }}" href="#{{ last }}">{{ last | upper }}</a></h3></li>
+{% if tag.name[0] != ns.last -%}
+    {% set ns.last = tag.name[0] %}
+    <li class="separator"><h3><a name="{{ ns.last }}" href="#{{ ns.last }}">{{ ns.last | upper }}</a></h3></li>
 {%- endif %}
 {%- endif %}
     <li><a href="{{ tag.name }}.html">{{ tag.name }}</a> ({{ tag.notes|length }})</li>

@@ -2,16 +2,30 @@
 
 """Note renderer."""
 
-import base64, datetime, simplejson as json, glob, os, re, settings, shutil, unicodedata, urllib.request, urllib.parse, urllib.error
-from bs4 import BeautifulSoup
+import base64
+import datetime
+import glob
+import os
+import re
+import simplejson
+import shutil
+import unicodedata
+import urllib
+import uuid
+
+import bs4
 import jinja2
-from unidecode import unidecode
+import unidecode
+
 from .logger import logger
 from .util import fileGetContents, safeUnicode
 
+import settings
+
 try:
-    import pickle as pickle
+    import cPickle as pickle
 except ImportError:
+    logger.warn('cPickle import failed, falling back to plain pickle')
     import pickle
 
 # CSS scrubber expressions.
@@ -64,7 +78,21 @@ class Note(object):
         # print self.data.keys() #dir(self.data)
         # print self.data['tagNames']
 
-        self.data['title'] = BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
+        self.data['title'] = bs4.BeautifulSoup(self.data['title'], 'html.parser', from_encoding='iso8859-15').string
+
+        if 'tags' not in data:
+            data['tags'] = []
+
+        # Inject 'fake' tag with article source domain name.
+        # e.g.:
+        # {"parentGuid": null, "guid": "fbc37285-2796-45a2-8199-abeb8b48905b", "updateSequenceNum": 2226, "name": "windows"}
+        self.data['tags'] += [{
+            'parentGuid': None,
+            'guid': '%s' % (uuid.uuid3(uuid.NAMESPACE_DNS, 'foo.com'),),
+            'updateSequenceNum': -1,
+            'name': self.sourceDomain,
+        }]
+
         #tagStrings = [tag['name'].encode('utf-8') for tag in self.data.get('tags', [])]
         tagStrings = [('%s' % (tag['name'],)) for tag in self.data.get('tags', [])]
         #self.data['urlencoded_query'] = urllib.parse.quote_plus('%s %s' % (self.data['title'].encode('utf-8'), ' '.join(tagStrings)))
@@ -216,7 +244,7 @@ class HtmlGenerator(object):
         # environment-variable based override for development/testing purposes.
         for path in dataFiles:
             with open(path, 'r') as fh:
-                data = json.load(fh)
+                data = simplejson.load(fh)
 
             with open(jsonFilenameToPickle(path), 'rb') as fh:
                 obj = pickle.load(fh, encoding='latin1')
@@ -238,34 +266,42 @@ class HtmlGenerator(object):
     @staticmethod
     def arrangeNotesByTag(notes):
         byTag = {}
+
         for note in notes:
             if hasattr(note, 'tags'):
                 for tag in note.tags:
-                    tag['name'] = unidecode(safeUnicode(tag['name'].lower()))
+                    tag['name'] = unidecode.unidecode(safeUnicode(tag['name'].lower()))
                     if tag['name'] not in byTag:
                         byTag[tag['name']] = tag
                         byTag[tag['name']]['notes'] = []
                     byTag[tag['name']]['notes'].append(note)
+
         for tagName in byTag:
             byTag[tagName]['notes'] = sorted(byTag[tagName]['notes'], key=lambda note: note.createdTs, reverse=True)
+
         return byTag
 
     def notesByTag(self, notes, order='asc'):
         """@return list of tags, each tag includes notes."""
         byTag = self.arrangeNotesByTag(notes)
+
         values = sorted(list(byTag.values()), key=lambda tag: tag['name'], reverse=order == 'desc')
+
         return values
 
     def notesByTagFrequency(self, notes, order='asc'):
         """@return list of tags, each tag includes notes."""
         byTag = self.arrangeNotesByTag(notes)
+
         values = sorted(list(byTag.values()), key=lambda tag: tag['name'])
         values = sorted(values, key=lambda tag: len(byTag[tag['name']]['notes']), reverse=order == 'desc')
+
         return values
 
     def makeTags(self, notes):
         """Create tags index."""
         tagsAsc = self.notesByTag(notes)
+
         for tag in tagsAsc:
             self.render('tag.html', 'tag/{0}.html'.format(tag['name']), **{'tag': tag})
 
@@ -303,4 +339,3 @@ class HtmlGenerator(object):
         for resource, filename in note.resourceFilenameTuples():
             with open('%s/%s' % (assetsPath, filename), 'w' if type(resource.data.body) is str else 'wb') as fh:
                 fh.write(resource.data.body)
-

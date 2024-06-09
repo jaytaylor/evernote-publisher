@@ -8,26 +8,29 @@ EverNote WebClipper publisher.
 @date 2013-06-30
 """
 
-import base64, glob, os, settings, sys
-from bs4 import BeautifulSoup
+import base64
+import glob
+import os
+import settings
+import simplejson
+import sys
+import time
+
+import bs4
+import evernote.api.client
+import evernote.api.client
+import evernote.edam.notestore.ttypes
+
 from .errorcodes import *
 from .logger import logger
 
-from evernote.api.client import EvernoteClient
-from evernote.edam.notestore.ttypes import NoteFilter
-
 try:
-    import pickle as pickle
+    import cPickle as pickle
 except ImportError:
+    logger.warn('cPickle import failed, falling back to plain pickle')
     import pickle
 
-try:
-    import simplejson as json
-except ImportError:
-    import json
-
 TAG_CACHE_FILENAME = 'data/.tagCache.pickle'
-
 
 class Collector(object):
     """Note collector."""
@@ -35,7 +38,7 @@ class Collector(object):
     def __init__(self, notebookName):
         """@param notebookName str Notebook name (or name fragment)."""
         self.notebookName = notebookName
-        self.client = EvernoteClient(
+        self.client = evernote.api.client.EvernoteClient(
             consumer_key=settings.consumerKey,
             consumer_secret=settings.consumerSecret,
             token=settings.developerToken,
@@ -93,20 +96,22 @@ class Collector(object):
             if os.path.exists(jsonFileName) and os.path.exists(pickleFileName):
                 logger.debug('jsonFileName=%s', jsonFileName)
                 with open(jsonFileName, 'r') as fh:
-                    # TODO: If JSON parsing fails, write an error log in
-                    #       evernote-publisher root directory so Jay can easily
-                    #       see there is a problem.
-                    detail = json.load(fh)
-                if isinstance(detail, dict) and detail.get('updated', None) == partialNote.updated:
-                    logger.debug('Already up to date for note=%s' % (partialNote.title,))
-                    continue
+                    try:
+                        detail = simplejson.load(fh)
+                        if isinstance(detail, dict) and detail.get('updated', None) == partialNote.updated:
+                            logger.debug('Already up to date for note=%s' % (partialNote.title,))
+                            continue
+                    except simplejson.errors.JSONDecodeError:
+                        logger.exception('Found malformed or corrupted JSON file: %s (will auto-rename)', jsonFileName)
+                        stamp = datetime.datetime.now().strftime('%Y-%m-%dT%H_%M_%S')
+                        os.rename(jsonFileName, 'corrupted--%s.%s' % (jsonFileName, stamp))
 
             note = self.getNote(partialNote.guid)
             tags = self.getNoteTags(note)
 
             #logger.debug('b64Content: %s' % (type(note.content)))
             data = {
-                'title': BeautifulSoup(note.title, 'html.parser').string,
+                'title': bs4.BeautifulSoup(note.title, 'html.parser').string,
                 #'b64Title': base64.b64encode(note.title),
                 'guid': note.guid,
                 'created': note.created,
@@ -124,7 +129,7 @@ class Collector(object):
                 pickle.dump(note, fh)
 
             with open(jsonFileName, 'w') as fh:
-                json.dump(data, fh)
+                simplejson.dump(data, fh)
 
 #            out = '''
 #    title: {title}
@@ -156,7 +161,7 @@ class Collector(object):
         # `order = 1' -> order by created
         # `order = 2' -> order by updated
         # @see NoteStoreOrder at https://dev.evernote.com/doc/reference/Types.html
-        searchFilter = NoteFilter(order=2, ascending=False, notebookGuid=notebook.guid)
+        searchFilter = evernote.edam.notestore.ttypes.NoteFilter(order=2, ascending=False, notebookGuid=notebook.guid)
         return searchFilter
 
     def localCountsMatchRemote(self, notebook):
@@ -187,7 +192,7 @@ class Collector(object):
 
     def __del__(self):
         """Persist tag cache to disk."""
-        if len(self.tagCache) == 0:
+        if not hasattr(self, 'tagCache') or len(self.tagCache) == 0:
            return
 
         logger.info('shutdown: saving tag cache to disk...')
