@@ -184,7 +184,7 @@ class HtmlGenerator(object):
                 filenameLower = filename.lower()
                 if filenameLower.endswith('.pdf'):
                     replacementMarkup = '<a href="%s">View PDF: %s </a> (Asset %s/%s)' % (relPath, filename, i, numAssets)
-                elif filenameLower.endswith('.octet-stream') and resource.data.body[0:3].lower().startswith(b'<svg'):
+                elif filenameLower.endswith('.octet-stream') and (resource.data.body[0:3] == b'<svg' or resource.data.body[0:3] == '<svg' or resource.data.body[0:3] == b'<SVG' or resource.data.body[0:3] == '<SVG'):
                     replacementMarkup = resource.data.body
                 else:
                     replacementMarkup = '<a href="%s"><img src="%s" alt="Image (Asset %s/%s) alt="Image (Asset %s/%s)" /></a>' % (relPath, relPath, i, numAssets, i, numAssets)
